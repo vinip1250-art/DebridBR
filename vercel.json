@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "routes": [
+    { "src": "/manifest.json", "dest": "/server.js" },
+    { "src": "/catalog/(.*)", "dest": "/server.js" },
+    { "src": "/stream/(.*)", "dest": "/server.js" },
+    { "src": "/", "dest": "/public/index.html" }
+  ]
+}
