@@ -14,12 +14,9 @@
 <body>
   <h1>Configuração do Addon Brazuca + Debrid</h1>
   <div class="card">
-    <label><input type="checkbox" id="rd"> Usar Real-Debrid</label>
-    <label><input type="checkbox" id="torbox"> Usar Torbox</label>
-    <label><input type="checkbox" id="stremthru"> Usar StremThru</label>
-    <label>Token da API:
-      <input type="text" id="token" placeholder="Cole seu token aqui">
-    </label>
+    <label><input type="radio" name="profile" value="rd" checked> Real-Debrid</label>
+    <label><input type="radio" name="profile" value="torbox"> Torbox</label>
+    <label><input type="radio" name="profile" value="stremthru"> StremThru</label>
     <button onclick="generateLink()">Gerar Link de Instalação</button>
     <label>Link para instalar no Stremio:
       <input type="text" id="manifestLink" readonly>
@@ -29,14 +26,8 @@
 
   <script>
     function generateLink() {
-      const config = {
-        rd: document.getElementById("rd").checked,
-        torbox: document.getElementById("torbox").checked,
-        stremthru: document.getElementById("stremthru").checked,
-        token: document.getElementById("token").value.trim()
-      };
-      const encoded = btoa(JSON.stringify(config));
-      const link = window.location.origin + "/manifest.json?config=" + encoded;
+      const profile = document.querySelector('input[name="profile"]:checked').value;
+      const link = window.location.origin + "/manifest/" + profile + ".json";
       document.getElementById("manifestLink").value = link;
     }
 
@@ -44,7 +35,7 @@
       const input = document.getElementById("manifestLink");
       input.select();
       document.execCommand("copy");
-      alert("Link copiado para a área de transferência!");
+      alert("Link copiado!");
     }
   </script>
 </body>
