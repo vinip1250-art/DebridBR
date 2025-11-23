@@ -1,3 +1,16 @@
+import express from "express";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+
+// Servir arquivos estáticos
+app.use(express.static(path.join(__dirname, "public")));
+
+// Manifesto
 app.get("/manifest.json", (req, res) => {
   let config = {};
   if (req.query.config) {
@@ -20,9 +33,25 @@ app.get("/manifest.json", (req, res) => {
     resources: ["catalog", "stream"],
     types: ["movie", "series"],
     idPrefixes: ["tt"],
-    // opcional: incluir info de config para debug
     config
   };
 
   res.json(manifest);
 });
+
+// Rotas de catálogo e stream
+app.get("/catalog/:type/:id.json", (req, res) => {
+  res.json({ metas: [] });
+});
+
+app.get("/stream/:type/:id.json", (req, res) => {
+  res.json({ streams: [] });
+});
+
+// Fallback para index.html
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+// 🚨 Exportar o app para Vercel
+export default app;
