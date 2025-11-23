@@ -1,19 +1,21 @@
 <div class="card">
-  <h2>Link do Addon</h2>
-  <p>Copie este link e cole no Stremio:</p>
+  <h2>Gerar link de instalação</h2>
+  <label><input type="checkbox" id="rd"> Usar Real-Debrid</label>
+  <label><input type="checkbox" id="torbox"> Usar Torbox</label>
+  <label>Token: <input type="text" id="token"></label>
+  <button onclick="generateLink()">Gerar Link</button>
   <input type="text" id="manifestLink" readonly style="width:100%">
-  <button onclick="copyLink()">Copiar</button>
 </div>
 
 <script>
-  // Gera o link do manifesto com base no domínio atual
-  const manifestUrl = window.location.origin + "/manifest.json";
+function generateLink() {
+  const config = {
+    rd: document.getElementById("rd").checked,
+    torbox: document.getElementById("torbox").checked,
+    token: document.getElementById("token").value
+  };
+  const encoded = btoa(JSON.stringify(config)); // Base64
+  const manifestUrl = window.location.origin + "/manifest.json?config=" + encoded;
   document.getElementById("manifestLink").value = manifestUrl;
-
-  function copyLink() {
-    const input = document.getElementById("manifestLink");
-    input.select();
-    document.execCommand("copy");
-    alert("Link copiado!");
-  }
+}
 </script>
