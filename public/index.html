@@ -1,30 +1,19 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <title>Brazuca + Debrid Configuração</title>
-</head>
-<body>
-  <h1>Configuração do Addon</h1>
-  <form>
-    <label><input type="checkbox" id="rd"> Usar Real-Debrid</label><br>
-    <label><input type="checkbox" id="torbox"> Usar Torbox</label><br>
-    <label><input type="checkbox" id="stremthru"> Usar StremThru</label><br>
-    <label>Token: <input type="text" id="token"></label><br>
-    <button type="button" onclick="saveConfig()">Salvar</button>
-  </form>
+<div class="card">
+  <h2>Link do Addon</h2>
+  <p>Copie este link e cole no Stremio:</p>
+  <input type="text" id="manifestLink" readonly style="width:100%">
+  <button onclick="copyLink()">Copiar</button>
+</div>
 
-  <script>
-    function saveConfig() {
-      const config = {
-        rd: document.getElementById("rd").checked,
-        torbox: document.getElementById("torbox").checked,
-        stremthru: document.getElementById("stremthru").checked,
-        token: document.getElementById("token").value
-      };
-      localStorage.setItem("addonConfig", JSON.stringify(config));
-      alert("Configuração salva!");
-    }
-  </script>
-</body>
-</html>
+<script>
+  // Gera o link do manifesto com base no domínio atual
+  const manifestUrl = window.location.origin + "/manifest.json";
+  document.getElementById("manifestLink").value = manifestUrl;
+
+  function copyLink() {
+    const input = document.getElementById("manifestLink");
+    input.select();
+    document.execCommand("copy");
+    alert("Link copiado!");
+  }
+</script>
