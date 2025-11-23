@@ -1,21 +1,51 @@
-<div class="card">
-  <h2>Gerar link de instalação</h2>
-  <label><input type="checkbox" id="rd"> Usar Real-Debrid</label>
-  <label><input type="checkbox" id="torbox"> Usar Torbox</label>
-  <label>Token: <input type="text" id="token"></label>
-  <button onclick="generateLink()">Gerar Link</button>
-  <input type="text" id="manifestLink" readonly style="width:100%">
-</div>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Configuração do Addon</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; }
+    .card { border: 1px solid #ccc; padding: 1rem; margin-bottom: 1rem; }
+    label { display: block; margin-top: 0.5rem; }
+    input[type="text"] { width: 100%; padding: 0.5rem; margin-top: 0.5rem; }
+    button { margin-top: 1rem; padding: 0.5rem 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Configuração do Addon Brazuca + Debrid</h1>
+  <div class="card">
+    <label><input type="checkbox" id="rd"> Usar Real-Debrid</label>
+    <label><input type="checkbox" id="torbox"> Usar Torbox</label>
+    <label><input type="checkbox" id="stremthru"> Usar StremThru</label>
+    <label>Token da API:
+      <input type="text" id="token" placeholder="Cole seu token aqui">
+    </label>
+    <button onclick="generateLink()">Gerar Link de Instalação</button>
+    <label>Link para instalar no Stremio:
+      <input type="text" id="manifestLink" readonly>
+    </label>
+    <button onclick="copyLink()">Copiar Link</button>
+  </div>
 
-<script>
-function generateLink() {
-  const config = {
-    rd: document.getElementById("rd").checked,
-    torbox: document.getElementById("torbox").checked,
-    token: document.getElementById("token").value
-  };
-  const encoded = btoa(JSON.stringify(config)); // Base64
-  const manifestUrl = window.location.origin + "/manifest.json?config=" + encoded;
-  document.getElementById("manifestLink").value = manifestUrl;
-}
-</script>
+  <script>
+    function generateLink() {
+      const config = {
+        rd: document.getElementById("rd").checked,
+        torbox: document.getElementById("torbox").checked,
+        stremthru: document.getElementById("stremthru").checked,
+        token: document.getElementById("token").value.trim()
+      };
+      const encoded = btoa(JSON.stringify(config));
+      const link = window.location.origin + "/manifest.json?config=" + encoded;
+      document.getElementById("manifestLink").value = link;
+    }
+
+    function copyLink() {
+      const input = document.getElementById("manifestLink");
+      input.select();
+      document.execCommand("copy");
+      alert("Link copiado para a área de transferência!");
+    }
+  </script>
+</body>
+</html>
