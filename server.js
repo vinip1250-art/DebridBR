@@ -3,6 +3,9 @@ import fetch from "node-fetch";
 
 const app = express();
 
+// Servir arquivos estáticos da pasta public
+app.use(express.static("public"));
+
 // Manifesto Stremio
 const manifest = {
   id: "brscrap.brazuca.debrid",
@@ -20,61 +23,18 @@ const manifest = {
 
 app.get("/manifest.json", (req, res) => res.json(manifest));
 
-// Catálogo (placeholder)
 app.get("/catalog/:type/:id.json", async (req, res) => {
   res.json({ metas: [] });
 });
 
-// Stream resolver
 app.get("/stream/:type/:id.json", async (req, res) => {
-  const { type, id } = req.params;
-
-  // TODO: Scraping Brazuca Torrents
-  const candidates = await scrapeBrazuca({ type, id });
-
-  // TODO: Selecionar melhor torrent
-  const chosen = candidates[0];
-
-  // Configuração (via env ou stremthru)
-  const useRD = process.env.USE_RD === "true";
-  const useTorbox = process.env.USE_TORBOX === "true";
-  const useStremThru = process.env.USE_STREMTHRU === "true";
-
-  let streamUrl = null;
-  if (useRD) streamUrl = await resolveWithRD(chosen);
-  if (!streamUrl && useTorbox) streamUrl = await resolveWithTorbox(chosen);
-  if (!streamUrl && useStremThru) streamUrl = await resolveWithStremThru(chosen);
-
-  res.json({
-    streams: streamUrl
-      ? [{ name: "Debrid", title: chosen.title, url: streamUrl }]
-      : []
-  });
+  res.json({ streams: [] });
 });
 
-// --- Funções auxiliares ---
-async function scrapeBrazuca({ type, id }) {
-  // TODO: implementar scraping/consulta API Brazuca Torrents
-  return [];
-}
-
-async function resolveWithRD(item) {
-  // TODO: chamada à API Real-Debrid
-  return null;
-}
-
-async function resolveWithTorbox(item) {
-  // TODO: chamada à API Torbox
-  return null;
-}
-
-async function resolveWithStremThru(item) {
-  // TODO: chamada à API StremThru
-  return null;
-}
-
-// Servir página única
-app.use(express.static("public"));
+// Rota fallback para servir index.html em "/"
+app.get("/", (req, res) => {
+  res.sendFile("index.html", { root: "public" });
+});
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Addon rodando na porta ${port}`));
