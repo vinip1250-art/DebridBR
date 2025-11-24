@@ -1,7 +1,7 @@
 {
   "name": "brazuca-direct-pro",
-  "version": "16.0.0",
-  "description": "Brazuca Addon v16 (Render)",
+  "version": "17.0.0",
+  "description": "Brazuca Addon v17 (Brute Force Fix)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -13,6 +13,7 @@
     "express": "^4.18.2",
     "cors": "^2.8.5",
     "axios": "^1.6.2",
+    "form-data": "^4.0.0",
     "stremio-addon-sdk": "^1.6.10"
   }
 }
