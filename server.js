@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-const FormData = require('form-data'); // O Segredo para o TorBox funcionar no Node
+const FormData = require('form-data');
 const { addonBuilder } = require('stremio-addon-sdk');
 
 const app = express();
@@ -11,10 +11,10 @@ app.use(cors());
 // 1. MANIFESTO
 // ============================================================
 const manifest = {
-    id: 'community.brazuca.pro.direct.v20',
-    version: '20.0.0',
+    id: 'community.brazuca.pro.direct.v21',
+    version: '21.0.0',
     name: 'Brazuca',
-    description: 'Brazuca Direct (TorBox Multipart Fix)',
+    description: 'Brazuca Direct (TorBox URL Hunter)',
     resources: ['stream'],
     types: ['movie', 'series'],
     catalogs: [],
@@ -106,53 +106,78 @@ async function checkRealDebridCache(hashes, apiKey) {
     } catch (e) { return {}; }
 }
 
-// --- TORBOX (FORM-DATA ROBUSTO) ---
+// --- TORBOX (HUNTER MODE) ---
 async function resolveTorBox(infoHash, apiKey) {
     try {
         const magnet = `magnet:?xt=urn:btih:${infoHash}`;
         
-        // 1. CREATE TORRENT
-        // Usando form-data library explicitamente para garantir headers corretos
-        const form = new FormData();
-        form.append('magnet', magnet);
-        form.append('seed', '1');
-        form.append('allow_zip', 'false');
+        // LISTA DE ENDPOINTS PARA TENTAR (A API muda/tem aliases)
+        const endpoints = [
+            'https://api.torbox.app/v1/api/torrents/create', // Padrão V1
+            'https://api.torbox.app/api/torrents/create',    // Sem v1
+            'https://torbox.app/api/torrents/create',        // Domínio raiz
+            'https://api.torbox.app/v1/torrents/create'      // V1 sem /api
+        ];
 
-        const createUrl = 'https://api.torbox.app/v1/api/torrents/create';
-        console.log(`[TorBox] Criando em: ${createUrl}`);
+        let createResp = null;
+        let successUrl = null;
+        let lastError = null;
 
-        const createResp = await axios.post(createUrl, form, {
-            headers: { 
-                ...form.getHeaders(), // Isso gera o boundary correto que o TorBox exige
-                'Authorization': `Bearer ${apiKey}`,
-                'User-Agent': AXIOS_CONFIG.headers['User-Agent']
+        // 1. TENTA CRIAR EM CADA URL
+        for (const url of endpoints) {
+            try {
+                console.log(`[TorBox] Tentando POST em: ${url}`);
+                
+                // Recria o form para cada tentativa (streams não são reutilizáveis)
+                const form = new FormData();
+                form.append('magnet', magnet);
+                form.append('seed', '1');
+                form.append('allow_zip', 'false');
+
+                const resp = await axios.post(url, form, {
+                    headers: { 
+                        ...form.getHeaders(),
+                        'Authorization': `Bearer ${apiKey}`,
+                        'User-Agent': AXIOS_CONFIG.headers['User-Agent']
+                    }
+                });
+
+                if (resp.data && resp.data.success) {
+                    createResp = resp;
+                    successUrl = url;
+                    console.log(`[TorBox] SUCESSO em: ${url}`);
+                    break; // Paramos aqui, funcionou!
+                }
+            } catch (e) {
+                console.log(`[TorBox] Falha (${url}): ${e.response?.status}`);
+                lastError = e.response?.status || e.message;
             }
-        });
+        }
 
-        if (!createResp.data.success) {
-            return { url: null, error: `TorBox Recusou Criação: ${createResp.data.detail || 'Sem detalhe'}` };
+        if (!createResp || !createResp.data.success) {
+            return { url: null, error: `TorBox Falhou (404 em todas as rotas). Último erro: ${lastError}` };
         }
 
         const torrentId = createResp.data.data.torrent_id;
-        console.log(`[TorBox] ID Criado: ${torrentId}`);
 
-        // 2. LIST FILES (Polling)
+        // 2. LISTAGEM (Usa a mesma base da URL que funcionou)
+        // Ex: Se funcionou em .../v1/api/create, listamos em .../v1/api/mylist
+        const listBase = successUrl.replace('/create', '/mylist');
         let foundFile = null;
+
         for(let i=0; i<6; i++) { 
             await new Promise(r => setTimeout(r, 2000));
             try {
-                const listUrl = `https://api.torbox.app/v1/api/torrents/mylist?bypass_cache=true&id=${torrentId}`;
-                const listResp = await axios.get(listUrl, { 
+                const listResp = await axios.get(`${listBase}?bypass_cache=true&id=${torrentId}`, { 
                     headers: { 'Authorization': `Bearer ${apiKey}`, 'User-Agent': AXIOS_CONFIG.headers['User-Agent'] } 
                 });
                 
                 const data = listResp.data.data;
                 if (data && data.files && data.files.length > 0) {
-                    // Pega o maior arquivo
                     foundFile = data.files.reduce((prev, curr) => (prev.size > curr.size) ? prev : curr);
                     break;
                 }
-            } catch(e) { console.log("TorBox Listagem retry..."); }
+            } catch(e) {}
         }
         
         if (!foundFile) {
@@ -160,7 +185,10 @@ async function resolveTorBox(infoHash, apiKey) {
         }
 
         // 3. REQUEST LINK
-        const reqUrl = `https://api.torbox.app/v1/api/torrents/requestdl?token=${apiKey}&torrent_id=${torrentId}&file_id=${foundFile.id}&zip_link=false`;
+        // Baseado na URL de sucesso também
+        const reqBase = successUrl.replace('/create', '/requestdl');
+        const reqUrl = `${reqBase}?token=${apiKey}&torrent_id=${torrentId}&file_id=${foundFile.id}&zip_link=false`;
+        
         const reqResp = await axios.get(reqUrl, { headers: { ...AXIOS_CONFIG.headers } });
         
         if (reqResp.data.success) {
@@ -171,7 +199,7 @@ async function resolveTorBox(infoHash, apiKey) {
 
     } catch (e) { 
         console.error(`TorBox Fatal:`, e.message);
-        return { url: null, error: `Erro TorBox HTTP: ${e.response?.status || e.message}` }; 
+        return { url: null, error: `Erro TorBox: ${e.message}` }; 
     }
 }
 
@@ -180,10 +208,23 @@ async function checkTorBoxCache(hashes, apiKey) {
     const hStr = hashes.slice(0, 40).join(',');
 
     try {
-        const url = `https://api.torbox.app/v1/api/torrents/checkcached?hash=${hStr}&format=list&list_files=false`;
-        const resp = await axios.get(url, { 
-            headers: { 'Authorization': `Bearer ${apiKey}`, 'User-Agent': AXIOS_CONFIG.headers['User-Agent'] } 
-        });
+        // Tenta URL padrão, se falhar, tenta alternativa
+        const urls = [
+            `https://api.torbox.app/v1/api/torrents/checkcached?hash=${hStr}&format=list&list_files=false`,
+            `https://api.torbox.app/api/torrents/checkcached?hash=${hStr}&format=list&list_files=false`
+        ];
+
+        let resp = null;
+        for(const url of urls) {
+            try {
+                resp = await axios.get(url, { 
+                    headers: { 'Authorization': `Bearer ${apiKey}`, 'User-Agent': AXIOS_CONFIG.headers['User-Agent'] } 
+                });
+                if(resp.status === 200) break;
+            } catch(e) {}
+        }
+
+        if(!resp) return {};
         
         const results = {};
         hashes.forEach(h => results[h.toLowerCase()] = false);
@@ -224,7 +265,7 @@ const configureHtml = `
     <div class="w-full max-w-md card rounded-2xl p-8 relative">
         <div class="text-center mb-8">
             <h1 class="text-4xl font-extrabold text-[#66fcf1] mb-2">Brazuca <span class="text-white">Direct</span></h1>
-            <p class="text-gray-400 text-xs">V20.0 FORM DATA</p>
+            <p class="text-gray-400 text-xs">V21.0 (URL HUNTER)</p>
         </div>
         <form id="configForm" class="space-y-6">
             <div class="bg-[#0b0c10] p-4 rounded-xl border border-gray-800 hover:border-blue-500 transition-colors">
@@ -357,8 +398,9 @@ app.get('/:config/stream/:type/:id.json', async (req, res) => {
         if (!h) return;
         const cleanTitle = (s.title || 'video').replace(/\n/g, ' ').trim();
 
+        // Real Debrid
         if (rdKey) {
-            const isCached = rdCache[h] === true;
+            const isCached = rdCache[h] === true || rdCache[h.toLowerCase()] === true;
             const icon = isCached ? '⚡' : '📥';
             finalStreams.push({
                 name: 'Brazuca [RD]',
@@ -367,8 +409,9 @@ app.get('/:config/stream/:type/:id.json', async (req, res) => {
                 behaviorHints: { notWebReady: !isCached }
             });
         }
+        // TorBox
         if (tbKey) {
-            const isCached = tbCache[h] === true;
+            const isCached = tbCache[h] === true || tbCache[h.toLowerCase()] === true;
             const icon = isCached ? '⚡' : '📥';
             finalStreams.push({
                 name: 'Brazuca [TB]',
@@ -383,7 +426,7 @@ app.get('/:config/stream/:type/:id.json', async (req, res) => {
     res.json({ streams: finalStreams });
 });
 
-// RESOLVE HANDLER
+// RESOLVE HANDLER (Debug)
 app.get('/resolve/:service/:key/:hash', async (req, res) => {
     const { service, key, hash } = req.params;
     let result = null;
@@ -395,16 +438,13 @@ app.get('/resolve/:service/:key/:hash', async (req, res) => {
         res.redirect(result.url);
     } else {
         const errorMsg = result ? result.error : "Erro desconhecido";
-        // Página de Diagnóstico
         res.status(404).send(`
             <html>
                 <body style="background:#111; color:#fff; font-family:sans-serif; display:flex; justify-content:center; align-items:center; height:100vh; text-align:center;">
                     <div style="max-width:500px; padding:20px; border:1px solid #333; border-radius:10px;">
-                        <h1 style="color:#e74c3c;">⚠️ Status do Pedido</h1>
-                        <div style="background:#222; padding:15px; border-radius:5px; margin:20px 0; font-family:monospace; color:#f1c40f;">
-                            ${errorMsg}
-                        </div>
-                        <p style="color:#888;">Verifique sua nuvem <b>${service.toUpperCase()}</b>.</p>
+                        <h1 style="color:#e74c3c;">⚠️ Diagnóstico</h1>
+                        <p style="font-size:1.1rem; margin:20px 0;">${errorMsg}</p>
+                        <p style="margin-top:20px; color:#888;">Se for erro de API ou IP, pode ser necessário um servidor pago.</p>
                         <button onclick="history.back()" style="background:#45a29e; color:#000; border:none; padding:10px 20px; margin-top:20px; cursor:pointer; border-radius:5px;">Voltar</button>
                     </div>
                 </body>
