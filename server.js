@@ -1,17 +1,15 @@
-// server.js - Brazuca Direct (TorBox + Real-Debrid) - v22.0.0
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const FormData = require('form-data');
-const morgan = require('morgan');
-const helmet = require('helmet');
 const { addonBuilder } = require('stremio-addon-sdk');
 
 const app = express();
-app.use(helmet());
 app.use(cors());
 app.use(express.json());
-app.use(morgan('combined'));
+
+// Se quiser logging simples durante debug:
+// app.use((req, res, next) => { console.log(`${req.method} ${req.originalUrl}`); next(); });
 
 // ============================================================
 // CONFIG
