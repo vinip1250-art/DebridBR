@@ -1,7 +1,7 @@
 {
   "name": "brazuca-direct-pro",
-  "version": "27.0.0",
-  "description": "Brazuca Addon (TorBox Patch)",
+  "version": "28.0.0",
+  "description": "Brazuca Addon (Axios + FormData)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
