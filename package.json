@@ -1,20 +1,20 @@
 {
-  "name": "brazuca-direct-pro",
-  "version": "19.0.0",
-  "description": "Brazuca Addon v19 (Fetch Native)",
+  "name": "brazuca-direct",
+  "version": "1.0.0",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
-  "engines": {
-    "node": ">=18.0.0"
-  },
   "dependencies": {
-    "express": "^4.18.2",
+    "axios": "^1.5.0",
     "cors": "^2.8.5",
-    "axios": "^1.6.2",
-    "stremio-addon-sdk": "^1.6.10"
+    "express": "^4.18.2",
+    "form-data": "^4.0.0",
+    "morgan": "^1.10.0",
+    "helmet": "^7.0.0",
+    "stremio-addon-sdk": "^0.4.0"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
-
-
