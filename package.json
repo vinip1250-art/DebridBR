@@ -1,7 +1,7 @@
 {
   "name": "brazuca-direct-pro",
-  "version": "11.0.0",
-  "description": "Brazuca Addon for Render",
+  "version": "14.0.0",
+  "description": "Brazuca Addon v14 (Render Fix)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
