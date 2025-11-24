@@ -1,7 +1,7 @@
 {
   "name": "brazuca-direct-pro",
-  "version": "14.0.0",
-  "description": "Brazuca Addon v14 (Render Fix)",
+  "version": "15.0.0",
+  "description": "Brazuca Addon v15 (JSON Fix)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -16,3 +16,5 @@
     "stremio-addon-sdk": "^1.6.10"
   }
 }
+
+
