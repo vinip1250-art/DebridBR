@@ -7,13 +7,13 @@ const app = express();
 app.use(cors());
 
 // ============================================================
-// 1. MANIFESTO (v15.0 - JSON Fix)
+// 1. MANIFESTO
 // ============================================================
 const manifest = {
-    id: 'community.brazuca.pro.direct.v15',
-    version: '15.0.0',
+    id: 'community.brazuca.pro.direct.v16',
+    version: '16.0.0',
     name: 'Brazuca',
-    description: 'Brazuca Direct (TorBox JSON Fix)',
+    description: 'Brazuca Direct (TorBox/RD v16)',
     resources: ['stream'],
     types: ['movie', 'series'],
     catalogs: [],
@@ -28,12 +28,10 @@ const manifest = {
 const builder = new addonBuilder(manifest);
 const BRAZUCA_UPSTREAM = "https://94c8cb9f702d-brazuca-torrents.baby-beamup.club";
 
-// Configuração de Headers simulando navegador real
+// Headers simulando navegador
 const AXIOS_CONFIG = {
     headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept': 'application/json',
-        'Accept-Encoding': 'gzip, deflate, br'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
 };
 
@@ -47,6 +45,7 @@ async function resolveRealDebrid(infoHash, apiKey) {
         const magnet = `magnet:?xt=urn:btih:${infoHash}`;
         const addUrl = 'https://api.real-debrid.com/rest/1.0/torrents/addMagnet';
         
+        // RD usa params no body
         const params = new URLSearchParams();
         params.append('magnet', magnet);
 
@@ -55,6 +54,7 @@ async function resolveRealDebrid(infoHash, apiKey) {
         });
         const torrentId = addResp.data.id;
 
+        // Polling
         const infoUrl = `https://api.real-debrid.com/rest/1.0/torrents/info/${torrentId}`;
         let attempts = 0;
         while (attempts < 10) {
@@ -76,17 +76,14 @@ async function resolveRealDebrid(infoHash, apiKey) {
         if (finalInfo.data.links && finalInfo.data.links.length > 0) {
             const linkParams = new URLSearchParams();
             linkParams.append('link', finalInfo.data.links[0]);
-            
             const unrestrictResp = await axios.post('https://api.real-debrid.com/rest/1.0/unrestrict/link', linkParams, {
                 headers: { ...AXIOS_CONFIG.headers, 'Authorization': `Bearer ${apiKey}` }
             });
             return { url: unrestrictResp.data.download, error: null };
         }
-        return { url: null, error: "RD: Aguardando download." };
+        return { url: null, error: "RD: Arquivo adicionado à nuvem (aguardando download)." };
     } catch (e) { 
-        if (e.response && e.response.status === 403) {
-            return { url: null, error: "ERRO 403: O Real-Debrid bloqueou o IP deste servidor (Render)." };
-        }
+        if (e.response && e.response.status === 403) return { url: null, error: "ERRO 403: IP do Render bloqueado pelo Real-Debrid." };
         return { url: null, error: e.message }; 
     }
 }
@@ -99,13 +96,13 @@ async function checkRealDebridCache(hashes, apiKey) {
         const resp = await axios.get(url, { headers: { ...AXIOS_CONFIG.headers, 'Authorization': `Bearer ${apiKey}` } });
         
         const results = {};
-        const mapLower = {};
-        if (resp.data) {
-            for (const k in resp.data) mapLower[k.toLowerCase()] = resp.data[k];
-        }
+        // Mapeamento insensível a maiúsculas/minúsculas
+        const map = {};
+        for(let k in resp.data) map[k.toLowerCase()] = resp.data[k];
 
         validHashes.forEach(h => {
-            const data = mapLower[h.toLowerCase()];
+            const data = map[h.toLowerCase()];
+            // RD Cache é válido se tiver chave 'rd' com arquivos
             if (data && data.rd && Array.isArray(data.rd) && data.rd.length > 0) {
                 results[h] = true;
             } else {
@@ -113,56 +110,49 @@ async function checkRealDebridCache(hashes, apiKey) {
             }
         });
         return results;
-    } catch (e) {
-        if (e.response && e.response.status === 403) {
-            console.error("RD Cache: 403 Forbidden (IP Blocked)");
-            return { error: "403" }; // Sinaliza bloqueio
-        }
-        return {};
-    }
+    } catch (e) { return {}; }
 }
 
-// --- TORBOX (JSON FIX) ---
+// --- TORBOX (FIX) ---
 async function resolveTorBox(infoHash, apiKey) {
     try {
         const magnet = `magnet:?xt=urn:btih:${infoHash}`;
         
-        // MUDANÇA: Envio via JSON Body
-        const payload = {
-            magnet: magnet,
-            seed: 1,
-            allow_zip: false
-        };
-
-        // Tenta endpoint principal com JSON
+        // Endpoint oficial
         const createUrl = 'https://api.torbox.app/v1/api/torrents/create'; 
         
-        console.log(`[TorBox] Enviando JSON para: ${createUrl}`);
+        const params = new URLSearchParams();
+        params.append('magnet', magnet);
+        params.append('seed', '1');
+        params.append('allow_zip', 'false');
+
+        console.log(`[TorBox] Criando: ${infoHash}`);
         
-        const createResp = await axios.post(createUrl, payload, {
+        const createResp = await axios.post(createUrl, params, {
             headers: { 
                 'Authorization': `Bearer ${apiKey}`,
-                'Content-Type': 'application/json', // Forçando JSON
-                'User-Agent': AXIOS_CONFIG.headers['User-Agent']
+                'Content-Type': 'application/x-www-form-urlencoded',
+                ...AXIOS_CONFIG.headers
             }
         });
 
         if (!createResp.data.success) {
-            return { url: null, error: `TorBox Recusou: ${createResp.data.detail || 'Erro desconhecido'}` };
+            return { url: null, error: `TorBox API Error: ${createResp.data.detail || 'Falha desconhecida'}` };
         }
 
         const torrentId = createResp.data.data.torrent_id;
 
-        // Polling Listagem
+        // Polling (10s)
         let foundFile = null;
         for(let i=0; i<5; i++) { 
             await new Promise(r => setTimeout(r, 2000));
             try {
                 const listUrl = `https://api.torbox.app/v1/api/torrents/mylist?bypass_cache=true&id=${torrentId}`;
-                const listResp = await axios.get(listUrl, { headers: { 'Authorization': `Bearer ${apiKey}` } });
+                const listResp = await axios.get(listUrl, { headers: { 'Authorization': `Bearer ${apiKey}`, ...AXIOS_CONFIG.headers } });
                 
                 const data = listResp.data.data;
                 if (data && data.files && data.files.length > 0) {
+                    // Pega o maior arquivo
                     foundFile = data.files.reduce((prev, curr) => (prev.size > curr.size) ? prev : curr);
                     break;
                 }
@@ -176,12 +166,13 @@ async function resolveTorBox(infoHash, apiKey) {
             if (reqResp.data.success) return { url: reqResp.data.data, error: null };
         }
         
-        return { url: null, error: "TorBox: Download iniciado (Processando)." };
+        return { url: null, error: "TorBox: Download iniciado (Arquivos ainda não listados)." };
 
     } catch (e) { 
-        console.error(`TorBox JSON Error: ${e.message} Status: ${e.response?.status}`);
-        // Se der 404 mesmo com JSON, é problema de rota no servidor deles
-        return { url: null, error: `TorBox API Error: ${e.response?.status || e.message}` };
+        console.error(`TorBox Fatal: ${e.message}`);
+        // Retorna erro detalhado para o usuário ver na tela
+        const detail = e.response?.data?.detail || e.response?.statusText || e.message;
+        return { url: null, error: `TorBox HTTP ${e.response?.status || 'Unknown'}: ${detail}` };
     }
 }
 
@@ -192,16 +183,20 @@ async function checkTorBoxCache(hashes, apiKey) {
     try {
         const url = `https://api.torbox.app/v1/api/torrents/checkcached?hash=${hStr}&format=list&list_files=false`;
         const resp = await axios.get(url, { 
-            headers: { 'Authorization': `Bearer ${apiKey}`, 'User-Agent': AXIOS_CONFIG.headers['User-Agent'] } 
+            headers: { 'Authorization': `Bearer ${apiKey}`, ...AXIOS_CONFIG.headers } 
         });
         
         const results = {};
         hashes.forEach(h => results[h.toLowerCase()] = false);
         
         const data = resp.data.data;
+        
+        // TorBox retorna Array de strings (hashes encontrados)
         if (Array.isArray(data)) {
             data.forEach(h => { if(h) results[h.toLowerCase()] = true; });
-        } else if (typeof data === 'object') {
+        } 
+        // Fallback para objeto
+        else if (typeof data === 'object') {
             Object.keys(data).forEach(k => { if(data[k]) results[k.toLowerCase()] = true; });
         }
         return results;
@@ -234,7 +229,7 @@ const configureHtml = `
     <div class="w-full max-w-md card rounded-2xl p-8 relative">
         <div class="text-center mb-8">
             <h1 class="text-4xl font-extrabold text-[#66fcf1] mb-2">Brazuca <span class="text-white">Direct</span></h1>
-            <p class="text-gray-400 text-xs">V15.0 (JSON & IP CHECK)</p>
+            <p class="text-gray-400 text-xs">V16.0 (Render)</p>
         </div>
         <form id="configForm" class="space-y-6">
             <div class="bg-[#0b0c10] p-4 rounded-xl border border-gray-800 hover:border-blue-500 transition-colors">
@@ -359,18 +354,8 @@ app.get('/:config/stream/:type/:id.json', async (req, res) => {
     // Cache Check
     let rdCache = {}, tbCache = {};
     
-    // RD
-    if (rdKey && hashList.length > 0) {
-        rdCache = await checkRealDebridCache(hashList, rdKey);
-        // Se retornou erro de IP Block
-        if (rdCache.error === "403") {
-            console.log("RD Cache Check: 403 Blocked");
-        }
-    }
-    // TB
-    if (tbKey && hashList.length > 0) {
-        tbCache = await checkTorBoxCache(hashList, tbKey);
-    }
+    if (rdKey && hashList.length > 0) rdCache = await checkRealDebridCache(hashList, rdKey);
+    if (tbKey && hashList.length > 0) tbCache = await checkTorBoxCache(hashList, tbKey);
 
     const finalStreams = [];
     streams.forEach(s => {
@@ -378,20 +363,21 @@ app.get('/:config/stream/:type/:id.json', async (req, res) => {
         if (!h) return;
         const cleanTitle = (s.title || 'video').replace(/\n/g, ' ').trim();
 
+        // RD Item
         if (rdKey) {
-            const isCached = rdCache[h] === true || rdCache[h.toLowerCase()] === true;
-            const icon = isCached ? '⚡' : (rdCache.error === "403" ? '⚠️' : '📥');
-            const state = rdCache.error === "403" ? 'IP BLOCKED' : (isCached ? 'INSTANT' : 'DOWNLOAD');
-            
+            const isCached = rdCache[h] === true;
+            const icon = isCached ? '⚡' : '📥';
             finalStreams.push({
                 name: 'Brazuca [RD]',
-                title: `${icon} ${cleanTitle}\n${state}`,
+                title: `${icon} ${cleanTitle}`,
                 url: `${req.protocol}://${req.get('host')}/resolve/realdebrid/${encodeURIComponent(cfg.rd)}/${h}`,
                 behaviorHints: { notWebReady: !isCached }
             });
         }
+        
+        // TB Item
         if (tbKey) {
-            const isCached = tbCache[h] === true || tbCache[h.toLowerCase()] === true;
+            const isCached = tbCache[h] === true;
             const icon = isCached ? '⚡' : '📥';
             finalStreams.push({
                 name: 'Brazuca [TB]',
@@ -406,7 +392,7 @@ app.get('/:config/stream/:type/:id.json', async (req, res) => {
     res.json({ streams: finalStreams });
 });
 
-// RESOLVE
+// RESOLVE HANDLER (Mostra erro real na tela)
 app.get('/resolve/:service/:key/:hash', async (req, res) => {
     const { service, key, hash } = req.params;
     let result = null;
@@ -422,11 +408,12 @@ app.get('/resolve/:service/:key/:hash', async (req, res) => {
             <html>
                 <body style="background:#111; color:#fff; font-family:sans-serif; display:flex; justify-content:center; align-items:center; height:100vh; text-align:center;">
                     <div style="max-width:500px; padding:20px; border:1px solid #333; border-radius:10px;">
-                        <h1 style="color:#e74c3c;">⚠️ Falha</h1>
+                        <h1 style="color:#e74c3c;">⚠️ Falha na Nuvem</h1>
                         <p style="font-size:1.1rem; margin:20px 0;">${errorMsg}</p>
-                        <div style="background:#222; padding:15px; border-radius:5px; font-family:monospace; color:#f1c40f; text-align:left; font-size:0.8rem;">
-                            Dica: Se o erro for "IP Blocked", o Real-Debrid bloqueou o servidor gratuito do Render.
-                        </div>
+                        <p style="margin-top:20px; color:#888; font-size:0.8rem;">
+                            Serviço: ${service.toUpperCase()}<br>
+                            Hash: ${hash}
+                        </p>
                         <button onclick="history.back()" style="background:#45a29e; color:#000; border:none; padding:10px 20px; margin-top:20px; cursor:pointer; border-radius:5px;">Voltar</button>
                     </div>
                 </body>
