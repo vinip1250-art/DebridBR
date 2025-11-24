@@ -1,7 +1,7 @@
 {
   "name": "brazuca-wrapper-generator",
-  "version": "4.0.0",
-  "description": "Brazuca Wrapper Generator for Render",
+  "version": "6.0.0",
+  "description": "Brazuca Wrapper Generator for Render/Vercel",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
