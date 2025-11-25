@@ -6,15 +6,53 @@ const app = express();
 app.use(cors());
 
 // ============================================================
-// 1. CONFIGURAÇÕES PADRÃO (Versão 37.0)
+// 1. CONFIGURAÇÕES PADRÃO
 // ============================================================
 const UPSTREAM_BASE = "https://94c8cb9f702d-brazuca-torrents.baby-beamup.club";
 const DEFAULT_NAME = "Brazuca"; 
 const DEFAULT_LOGO = "https://i.imgur.com/KVpfrAk.png";
 const PROJECT_VERSION = "1.0.0"; 
 
+// Algoritmo de Parsing Simples para tentar formatar o título
+function parseTorrentTitle(originalTitle) {
+    if (!originalTitle) return "";
+    
+    // 1. Normaliza e coloca em maiúsculas
+    const title = originalTitle.toUpperCase().replace(/\./g, ' ');
+    let quality = [];
+    let audio = [];
+    let tags = [];
+
+    // --- QUALIDADE ---
+    if (title.includes('2160P') || title.includes('4K')) quality.push('🟣 4K');
+    else if (title.includes('1080P')) quality.push('🔵 FHD');
+    else if (title.includes('720P')) quality.push('🟢 HD');
+
+    // --- ÁUDIO ---
+    if (title.includes('ATMO') || title.includes('ATMOS')) audio.push('🎧 Atmos');
+    if (title.includes('DDP') || title.includes('DD+')) audio.push('🔊 DD+');
+    
+    // --- IDIOMA ---
+    if (title.includes('DUAL') && (title.includes('AUDIO') || title.includes('AUD'))) tags.push('🗣️ Dual');
+    if (title.includes('PT-BR') || title.includes('PT BR') || title.includes('PORTUGUES')) tags.push('🇧🇷 PT-BR');
+    
+    // --- GERAL ---
+    if (title.includes('HDR')) tags.push('📺 HDR');
+    if (title.includes('WEBDL') || title.includes('WEB-DL')) tags.push('🌐 WEB-DL');
+
+    // 2. Concatenação
+    const segments = [
+        quality.join(' '),
+        audio.join(' '),
+        tags.join(' ')
+    ].filter(s => s.length > 0).join(' • ');
+
+    // Se a formatação falhou, retorna o nome limpo
+    return segments || originalTitle.replace(/\./g, ' ').trim();
+}
+
 // ============================================================
-// 2. ROTA DO MANIFESTO DINÂMICO (Proxy para Renomear/Trocar Ícone)
+// 2. ROTA DO MANIFESTO DINÂMICO
 // ============================================================
 app.get('/addon/manifest.json', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -22,15 +60,12 @@ app.get('/addon/manifest.json', async (req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=60'); 
     
     try {
-        // 1. Captura personalizações da URL (Query Params)
         const customName = req.query.name || DEFAULT_NAME;
         const customLogo = req.query.logo || DEFAULT_LOGO;
         
-        // 2. Baixa o original (apenas uma vez)
         const response = await axios.get(`${UPSTREAM_BASE}/manifest.json`);
         const manifest = response.data;
 
-        // 3. Aplica a customização
         const idSuffix = Buffer.from(customName).toString('hex').substring(0, 10);
         
         manifest.id = `community.brazuca.wrapper.${idSuffix}`;
@@ -43,21 +78,48 @@ app.get('/addon/manifest.json', async (req, res) => {
         
         res.json(manifest);
     } catch (error) {
-        console.error("Erro upstream:", error.message);
         res.status(500).json({ error: "Falha ao obter manifesto original" });
     }
 });
 
 // ============================================================
-// 3. ROTA REDIRECIONADORA
+// 3. ROTA REDIRECIONADORA (COM PARSING SIMPLES)
 // ============================================================
-// Redireciona todos os pedidos de streams, catálogos e meta diretamente para o Brazuca original.
+app.use('/addon/stream/:type/:id.json', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'application/json');
+    
+    try {
+        const upstreamUrl = `${UPSTREAM_BASE}${req.path}`;
+        const response = await axios.get(upstreamUrl);
+        let streams = response.data.streams || [];
+
+        const processedStreams = streams.map(stream => {
+            const originalTitle = stream.title.replace(/\n/g, ' ').trim(); 
+            const formattedDetails = parseTorrentTitle(originalTitle);
+
+            // Retorna o título formatado e o nome original no campo name (para o StremThru)
+            return {
+                ...stream,
+                title: formattedDetails, 
+                name: stream.name ? `${stream.name} - ${originalTitle}` : originalTitle
+            };
+        });
+
+        res.json({ streams: processedStreams });
+
+    } catch (error) {
+        res.status(404).json({ streams: [] }); 
+    }
+});
+
 app.use('/addon', (req, res) => {
     res.redirect(307, `${UPSTREAM_BASE}${req.path}`);
 });
 
+
 // ============================================================
-// 4. INTERFACE DO GERADOR (HTML)
+// 4. INTERFACE DO GERADOR
 // ============================================================
 const generatorHtml = `
 <!DOCTYPE html>
@@ -68,7 +130,6 @@ const generatorHtml = `
     <title>Brazuca Wrapper</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Vercel Analytics (apenas se deployado no Vercel) -->
     <script src="/_vercel/insights/script.js"></script> 
     <style>
         body { background-color: #0a0a0a; color: #e5e5e5; font-family: sans-serif; }
@@ -84,11 +145,13 @@ const generatorHtml = `
         .btn-action:hover { transform: translateY(-2px); shadow: 0 10px 20px rgba(37, 99, 235, 0.3); }
         
         /* Botões de Assinatura */
-        .btn-sub-rd { background: #1e40af; color: #93c5fd; font-weight: 600; font-size: 0.8rem; padding: 10px; border-radius: 0.5rem; border: 1px solid #2563eb; }
-        .btn-sub-tb { background: #5b21b6; color: #d8b4fe; font-weight: 600; font-size: 0.8rem; padding: 10px; border-radius: 0.5rem; border: 1px solid #9333ea; }
+        .btn-sub { font-weight: 600; font-size: 0.8rem; padding: 10px; border-radius: 0.5rem; border: 1px solid; text-align: center; display: block; transition: 0.2s; }
+        .btn-sub-rd { background: #1e40af; color: #93c5fd; border-color: #2563eb; }
+        .btn-sub-tb { background: #5b21b6; color: #d8b4fe; border-color: #9333ea; }
+        .btn-sub-rd:hover { background: #2563eb; color: white; }
+        .btn-sub-tb:hover { background: #7e22ce; color: white; }
         
         .divider { border-top: 1px solid #262626; margin: 25px 0; position: relative; }
-        /* Aumentar espaçamento para a API Key */
         .input-container { margin-bottom: 1.5rem; }
     </style>
 </head>
@@ -143,9 +206,11 @@ const generatorHtml = `
                         <input type="text" id="rd_key" placeholder="Cole sua API KEY" class="w-full input-dark px-4 py-3 rounded-lg text-sm" disabled>
                     </div>
                     
-                    <a href="http://real-debrid.com/?id=6684575" target="_blank" class="btn-sub-rd w-full shadow-lg shadow-blue-900/20 text-center font-bold">
-                        Assinar Real-Debrid <i class="fas fa-external-link-alt ml-2"></i>
-                    </a>
+                    <div class="grid grid-cols-1 gap-3">
+                        <a href="http://real-debrid.com/?id=6684575" target="_blank" class="btn-sub btn-sub-rd shadow-lg shadow-blue-900/20">
+                            Assinar Real-Debrid <i class="fas fa-external-link-alt ml-2"></i>
+                        </a>
+                    </div>
                 </div>
 
                 <!-- TorBox -->
@@ -159,9 +224,11 @@ const generatorHtml = `
                         <input type="text" id="tb_key" placeholder="Cole sua API KEY" class="w-full input-dark px-4 py-3 rounded-lg text-sm" disabled>
                     </div>
                     
-                    <a href="https://torbox.app/subscription?referral=b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96" target="_blank" class="btn-sub-tb w-full shadow-lg shadow-purple-900/20 text-center font-bold">
-                        Assinar TorBox <i class="fas fa-external-link-alt ml-2"></i>
-                    </a>
+                    <div class="grid grid-cols-1 gap-3">
+                        <a href="https://torbox.app/subscription?referral=b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96" target="_blank" class="btn-sub btn-sub-tb shadow-lg shadow-purple-900/20">
+                            Assinar TorBox <i class="fas fa-external-link-alt ml-2"></i>
+                        </a>
+                    </div>
                 </div>
             </div>
 
