@@ -67,7 +67,7 @@ app.get('/addon/*', async (req, res) => {
             const response = await axios.get(upstreamUrl);
             let streams = response.data.streams || [];
 
-            // Apenas retorna os streams. Deixamos o StremThru Wrapper fazer o parsing
+            // Retorna os streams originais para o StremThru fazer o parsing
             return res.json({ streams: streams });
 
         } catch (error) {
@@ -82,7 +82,7 @@ app.get('/addon/*', async (req, res) => {
 
 
 // ============================================================
-// 4. INTERFACE (Com Selector de Template)
+// 4. INTERFACE
 // ============================================================
 const generatorHtml = `
 <!DOCTYPE html>
@@ -114,7 +114,6 @@ const generatorHtml = `
         
         .divider { border-top: 1px solid #262626; margin: 25px 0; position: relative; }
         .input-container { margin-bottom: 1.5rem; }
-        .textarea-small { font-family: monospace; font-size: 10px; }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4 bg-black">
@@ -151,23 +150,8 @@ const generatorHtml = `
                     <input type="text" id="custom_logo" value="${DEFAULT_LOGO}" class="w-full input-dark p-2 rounded text-sm mt-1" onchange="updatePreview()">
                 </div>
             </div>
-            
-            <!-- 2. Customização de Formato -->
-            <div class="divider"></div>
-            <div>
-                <label class="text-xs font-bold text-gray-500 uppercase ml-1 block mb-2">2. Formatação Customizada (Opcional)</label>
-                
-                <select id="format_selector" onchange="loadFormatTemplate()" class="w-full input-dark p-3 rounded-lg text-sm mb-2 cursor-pointer">
-                    <option value="">-- Escolher um Modelo --</option>
-                    <option value="simple">Simples (FHD • Dual)</option>
-                    <option value="avancado">Avançado (Qualidade + Áudio + Idioma)</option>
-                </select>
 
-                <textarea id="custom_format_string" placeholder='Cole a string JSON de formatação (ex: {"name": "{stream.resolution::=2160p[...]})' class="w-full input-dark p-2 rounded textarea-small h-24 resize-none"></textarea>
-                <p class="text-[10px] text-gray-600">Este código dita o que aparece ao lado do nome do filme no Stremio. (Requer conhecimento de Torrentio Formatter)</p>
-            </div>
-
-            <!-- 3. Debrids (Tokens) -->
+            <!-- 2. Debrids (Tokens) -->
             <div class="divider"></div>
             
             <div class="space-y-6">
@@ -180,7 +164,8 @@ const generatorHtml = `
                     </div>
                     
                     <div class="input-container">
-                        <input type="text" id="tb_key" placeholder="Cole sua API KEY" class="w-full input-dark px-4 py-3 rounded-lg text-sm" disabled>
+                        <!-- Corrigido: Removido 'disabled' aqui -->
+                        <input type="text" id="tb_key" placeholder="Cole sua API KEY" class="w-full input-dark px-4 py-3 rounded-lg text-sm">
                     </div>
                     
                     <div class="grid grid-cols-1 gap-3">
@@ -199,7 +184,8 @@ const generatorHtml = `
                     </div>
                     
                     <div class="input-container">
-                        <input type="text" id="rd_key" placeholder="Cole sua API KEY" class="w-full input-dark px-4 py-3 rounded-lg text-sm" disabled>
+                        <!-- Corrigido: Removido 'disabled' aqui -->
+                        <input type="text" id="rd_key" placeholder="Cole sua API KEY" class="w-full input-dark px-4 py-3 rounded-lg text-sm" >
                     </div>
                     
                     <div class="grid grid-cols-1 gap-3">
@@ -235,28 +221,8 @@ const generatorHtml = `
         const instanceSelect = document.getElementById('instance');
         const REFERRAL_TB = "${REFERRAL_TB}";
 
-        const FORMATS = {
-            simple: {
-                name: "{stream.resolution::=2160p[\"4K\"||\"\"]}{stream.resolution::=1080p[\"FHD\"||\"\"]} • {stream.languages::join(' / ')}",
-                description: "{stream.audioTags::join(' | ')} | {stream.visualTags::join(' | ')} | {stream.size::bytes}"
-            },
-            avancado: {
-                name: "{stream.resolution::=2160p[\"🟣 4K\"||\"\"]}{stream.resolution::=1080p[\"🔵 FHD\"||\"\"]}{stream.resolution::=720p[\"🟢 HD\"||\"\"]}{stream.quality::~REMUX[\" 📀 Remux\"||\"\"]}{stream.quality::~DL[\" 🌐 WEB-DL\"||\"\"]}",
-                description: "{stream.visualTags::~HDR[\"📺 HDR\"||\"\"]}{stream.visualTags::~DV[\"🎬 DV\"||\"\"]} | {stream.audioTags::~ATMOS[\"🎧 Atmos\"||\"\"]}{stream.audioTags::~DDP[\"🔊 DD+\"||\"\"]} | {stream.languages::join(' / ')}"
-            }
-        };
-
         function loadFormatTemplate() {
-            const selector = document.getElementById('format_selector');
-            const textarea = document.getElementById('custom_format_string');
-            const key = selector.value;
-            
-            if (key && FORMATS[key]) {
-                const template = JSON.stringify(FORMATS[key], null, 2);
-                textarea.value = template;
-            } else {
-                textarea.value = '';
-            }
+            // Função para carregar templates removida, pois o campo foi excluído.
         }
         
         function updatePreview() {
@@ -271,15 +237,18 @@ const generatorHtml = `
             const tbInput = document.getElementById('tb_key');
             const btn = document.getElementById('btnGenerate');
 
+            // Habilita/Desabilita o input e esmaece o pai
             rdInput.disabled = !rd;
             tbInput.disabled = !tb;
-            
-            if(!rd) rdInput.value = '';
-            if(!tb) tbInput.value = '';
-            
+
             rdInput.parentElement.style.opacity = rd ? '1' : '0.5';
             tbInput.parentElement.style.opacity = tb ? '1' : '0.5';
 
+            // Limpa o valor se o checkbox for desmarcado
+            if(!rd) rdInput.value = '';
+            if(!tb) tbInput.value = '';
+            
+            // Lógica para habilitar o botão
             const isValid = (rd && rdInput.value.trim().length > 5) || (tb && tbInput.value.trim().length > 5);
 
             if(isValid) {
@@ -295,9 +264,10 @@ const generatorHtml = `
             }
         }
 
+        // Adicionado um listener para input para garantir que o botão habilite assim que o usuário colar a chave
         document.getElementById('rd_key').addEventListener('input', validate);
         document.getElementById('tb_key').addEventListener('input', validate);
-
+        
         function generate() {
             let host = instanceSelect.value;
             host = host.replace(/\\/$/, '').replace('http:', 'https:');
@@ -305,23 +275,9 @@ const generatorHtml = `
 
             const cName = document.getElementById('custom_name').value.trim();
             const cLogo = document.getElementById('custom_logo').value.trim();
-            const formatString = document.getElementById('custom_format_string').value.trim();
             
             let proxyParams = \`?name=\${encodeURIComponent(cName)}\`;
             if(cLogo) proxyParams += \`&logo=\${encodeURIComponent(cLogo)}\`;
-
-            // Adiciona a string de formatação customizada se existir
-            if (formatString) {
-                try {
-                    // O StremThru espera que a string seja um JSON válido de formatação
-                    const encodedFormat = encodeURIComponent(formatString);
-                    proxyParams += \`&format=\${encodedFormat}\`;
-                } catch(e) {
-                    alert("A string de formatação customizada é inválida. Use JSON válido.");
-                    return;
-                }
-            }
-
 
             const myMirrorUrl = window.location.origin + "/addon/manifest.json" + proxyParams + "&t=" + Date.now();
 
@@ -371,6 +327,7 @@ const generatorHtml = `
 </html>
 `;
 
+// Rota Principal (Servir HTML)
 app.get('/', (req, res) => res.send(generatorHtml));
 app.get('/configure', (req, res) => res.send(generatorHtml));
 
@@ -419,7 +376,7 @@ app.get('/addon/stream/:type/:id.json', async (req, res) => {
 
     } catch (error) {
         console.error("Stream Fetch Error:", error.message);
-        res.status(404).json({ streams: [] }); 
+        return res.status(404).json({ streams: [] }); 
     }
 });
 
