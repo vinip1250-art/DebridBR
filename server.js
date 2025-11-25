@@ -6,54 +6,18 @@ const app = express();
 app.use(cors());
 
 // ============================================================
-// 1. CONFIGURAÇÕES PADRÃO
+// 1. CONFIGURAÇÕES PADRÃO (Versão 38.0)
 // ============================================================
 const UPSTREAM_BASE = "https://94c8cb9f702d-brazuca-torrents.baby-beamup.club";
 const DEFAULT_NAME = "Brazuca"; 
 const DEFAULT_LOGO = "https://i.imgur.com/KVpfrAk.png";
 const PROJECT_VERSION = "1.0.0"; 
 
-// Algoritmo de Parsing Simples para tentar formatar o título
-function parseTorrentTitle(originalTitle) {
-    if (!originalTitle) return "";
-    
-    // 1. Normaliza e coloca em maiúsculas
-    const title = originalTitle.toUpperCase().replace(/\./g, ' ');
-    let quality = [];
-    let audio = [];
-    let tags = [];
-
-    // --- QUALIDADE ---
-    if (title.includes('2160P') || title.includes('4K')) quality.push('🟣 4K');
-    else if (title.includes('1080P')) quality.push('🔵 FHD');
-    else if (title.includes('720P')) quality.push('🟢 HD');
-
-    // --- ÁUDIO ---
-    if (title.includes('ATMO') || title.includes('ATMOS')) audio.push('🎧 Atmos');
-    if (title.includes('DDP') || title.includes('DD+')) audio.push('🔊 DD+');
-    
-    // --- IDIOMA ---
-    if (title.includes('DUAL') && (title.includes('AUDIO') || title.includes('AUD'))) tags.push('🗣️ Dual');
-    if (title.includes('PT-BR') || title.includes('PT BR') || title.includes('PORTUGUES')) tags.push('🇧🇷 PT-BR');
-    
-    // --- GERAL ---
-    if (title.includes('HDR')) tags.push('📺 HDR');
-    if (title.includes('WEBDL') || title.includes('WEB-DL')) tags.push('🌐 WEB-DL');
-
-    // 2. Concatenação
-    const segments = [
-        quality.join(' '),
-        audio.join(' '),
-        tags.join(' ')
-    ].filter(s => s.length > 0).join(' • ');
-
-    // Se a formatação falhou, retorna o nome limpo
-    return segments || originalTitle.replace(/\./g, ' ').trim();
-}
-
 // ============================================================
-// 2. ROTA DO MANIFESTO DINÂMICO
+// 2. LÓGICA DE PROXY E REDIRECIONAMENTO
 // ============================================================
+
+// Rota Principal para o Manifesto (Lida com o StremThru)
 app.get('/addon/manifest.json', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'application/json');
@@ -78,48 +42,29 @@ app.get('/addon/manifest.json', async (req, res) => {
         
         res.json(manifest);
     } catch (error) {
-        res.status(500).json({ error: "Falha ao obter manifesto original" });
+        // Se a busca falhar, retorna um JSON de erro simples para o StremThru
+        res.status(500).json({ error: "Upstream manifesto error" });
     }
 });
 
-// ============================================================
-// 3. ROTA REDIRECIONADORA (COM PARSING SIMPLES)
-// ============================================================
-app.use('/addon/stream/:type/:id.json', async (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Type', 'application/json');
-    
-    try {
-        const upstreamUrl = `${UPSTREAM_BASE}${req.path}`;
-        const response = await axios.get(upstreamUrl);
-        let streams = response.data.streams || [];
-
-        const processedStreams = streams.map(stream => {
-            const originalTitle = stream.title.replace(/\n/g, ' ').trim(); 
-            const formattedDetails = parseTorrentTitle(originalTitle);
-
-            // Retorna o título formatado e o nome original no campo name (para o StremThru)
-            return {
-                ...stream,
-                title: formattedDetails, 
-                name: stream.name ? `${stream.name} - ${originalTitle}` : originalTitle
-            };
-        });
-
-        res.json({ streams: processedStreams });
-
-    } catch (error) {
-        res.status(404).json({ streams: [] }); 
-    }
+// Rota de Redirecionamento (Cobre /addon/stream/..., /addon/catalog/...)
+// Esta rota garante que o StremThru pegue os streams e catálogos corretos
+app.get('/addon/:resource/:type/:id.json', (req, res) => {
+    const redirectUrl = `${UPSTREAM_BASE}${req.path}`;
+    res.redirect(307, redirectUrl);
 });
-
-app.use('/addon', (req, res) => {
-    res.redirect(307, `${UPSTREAM_BASE}${req.path}`);
+app.get('/addon/:resource/:type/:id/:extra.json', (req, res) => {
+    const redirectUrl = `${UPSTREAM_BASE}${req.path}`;
+    res.redirect(307, redirectUrl);
+});
+app.get('/addon/:resource/:id.json', (req, res) => {
+    const redirectUrl = `${UPSTREAM_BASE}${req.path}`;
+    res.redirect(307, redirectUrl);
 });
 
 
 // ============================================================
-// 4. INTERFACE DO GERADOR
+// 4. INTERFACE DO GERADOR (HTML)
 // ============================================================
 const generatorHtml = `
 <!DOCTYPE html>
@@ -142,14 +87,8 @@ const generatorHtml = `
             color: white; font-weight: bold; 
             transition: all 0.3s ease;
         }
-        .btn-action:hover { transform: translateY(-2px); shadow: 0 10px 20px rgba(37, 99, 235, 0.3); }
-        
-        /* Botões de Assinatura */
-        .btn-sub { font-weight: 600; font-size: 0.8rem; padding: 10px; border-radius: 0.5rem; border: 1px solid; text-align: center; display: block; transition: 0.2s; }
-        .btn-sub-rd { background: #1e40af; color: #93c5fd; border-color: #2563eb; }
-        .btn-sub-tb { background: #5b21b6; color: #d8b4fe; border-color: #9333ea; }
-        .btn-sub-rd:hover { background: #2563eb; color: white; }
-        .btn-sub-tb:hover { background: #7e22ce; color: white; }
+        .btn-ref-rd { background: #1e40af; color: #93c5fd; font-weight: 600; font-size: 0.8rem; padding: 10px; border-radius: 0.5rem; border: 1px solid #2563eb; }
+        .btn-ref-tb { background: #5b21b6; color: #d8b4fe; font-weight: 600; font-size: 0.8rem; padding: 10px; border-radius: 0.5rem; border: 1px solid #9333ea; }
         
         .divider { border-top: 1px solid #262626; margin: 25px 0; position: relative; }
         .input-container { margin-bottom: 1.5rem; }
@@ -163,7 +102,7 @@ const generatorHtml = `
         <div class="text-center mb-8">
             <img src="${DEFAULT_LOGO}" id="previewLogo" class="w-20 h-20 mx-auto mb-3 rounded-full border-2 border-gray-800 shadow-lg object-cover">
             <h1 class="text-3xl font-extrabold text-white tracking-tight">Brazuca <span class="text-blue-500">Wrapper</span></h1>
-            <p class="text-gray-500 text-xs mt-1 uppercase tracking-widest">Gerador StremThru v${PROJECT_VERSION}</p>
+            <p class="text-gray-500 text-xs mt-1 uppercase tracking-widest">GERADOR STREMTHRU V${PROJECT_VERSION}</p>
         </div>
 
         <form class="space-y-6">
@@ -207,7 +146,7 @@ const generatorHtml = `
                     </div>
                     
                     <div class="grid grid-cols-1 gap-3">
-                        <a href="http://real-debrid.com/?id=6684575" target="_blank" class="btn-sub btn-sub-rd shadow-lg shadow-blue-900/20">
+                        <a href="http://real-debrid.com/?id=6684575" target="_blank" class="btn-sub btn-sub-rd w-full shadow-lg shadow-blue-900/20 text-center font-bold">
                             Assinar Real-Debrid <i class="fas fa-external-link-alt ml-2"></i>
                         </a>
                     </div>
@@ -225,7 +164,7 @@ const generatorHtml = `
                     </div>
                     
                     <div class="grid grid-cols-1 gap-3">
-                        <a href="https://torbox.app/subscription?referral=b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96" target="_blank" class="btn-sub btn-sub-tb shadow-lg shadow-purple-900/20">
+                        <a href="https://torbox.app/subscription?referral=b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96" target="_blank" class="btn-sub btn-sub-tb w-full shadow-lg shadow-purple-900/20 text-center font-bold">
                             Assinar TorBox <i class="fas fa-external-link-alt ml-2"></i>
                         </a>
                     </div>
@@ -239,7 +178,7 @@ const generatorHtml = `
                     <button type="button" onclick="copyLink()" class="absolute right-1 top-1 bottom-1 bg-blue-900 hover:bg-blue-800 text-white px-3 rounded text-xs font-bold transition">COPY</button>
                 </div>
                 
-                <a id="installBtn" href="#" class="block w-full btn-action py-3.5 rounded-xl text-center font-bold text-sm uppercase tracking-widest shadow-lg">
+                <a id="installBtn" href="#" class="block w-full btn-action py-3.5 rounded-xl text-center font-bold text-sm uppercase tracking-wide shadow-lg">
                     INSTALAR AGORA
                 </a>
             </div>
@@ -343,7 +282,7 @@ const generatorHtml = `
 </html>
 `;
 
-// Exportar app para Vercel
+// Roteamento Final
 app.get('/', (req, res) => res.send(generatorHtml));
 
 app.get('*', (req, res) => {
