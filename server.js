@@ -6,15 +6,20 @@ const app = express();
 app.use(cors());
 
 // ============================================================
-// 1. CONFIGURAÇÕES
+// 1. CONFIGURAÇÕES PADRÃO (v1.0.0 - Limpo e Estável)
 // ============================================================
-const BRAZUCA_UPSTREAM = "https://94c8cb9f702d-brazuca-torrents.baby-beamup.club";
+const UPSTREAM_BASE = "https://94c8cb9f702d-brazuca-torrents.baby-beamup.club";
 const DEFAULT_NAME = "Brazuca"; 
 const DEFAULT_LOGO = "https://i.imgur.com/KVpfrAk.png";
 const PROJECT_VERSION = "1.0.0"; 
 
+// Códigos de Referência
+const REFERRAL_RD = "6684575";
+const REFERRAL_TB = "b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96";
+
+
 // ============================================================
-// 2. ROTA DO MANIFESTO (Proxy para Renomear/Trocar Ícone)
+// 2. ROTA MANIFESTO (Proxy para Renomeação)
 // ============================================================
 app.get('/addon/manifest.json', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -25,14 +30,15 @@ app.get('/addon/manifest.json', async (req, res) => {
         const customName = req.query.name || DEFAULT_NAME;
         const customLogo = req.query.logo || DEFAULT_LOGO;
         
-        const response = await axios.get(`${BRAZUCA_UPSTREAM}/manifest.json`);
+        const response = await axios.get(`${UPSTREAM_BASE}/manifest.json`);
         const manifest = response.data;
 
+        // Geramos ID baseado no nome para que o Stremio veja como único
         const idSuffix = Buffer.from(customName).toString('hex').substring(0, 10);
         
         manifest.id = `community.brazuca.wrapper.${idSuffix}`;
         manifest.name = customName; 
-        manifest.description = "Filmes e Séries Brasileiros via StremThru";
+        manifest.description = `Wrapper customizado: ${customName}`;
         manifest.logo = customLogo;
         manifest.version = PROJECT_VERSION; 
         
@@ -40,20 +46,22 @@ app.get('/addon/manifest.json', async (req, res) => {
         
         res.json(manifest);
     } catch (error) {
-        console.error("Erro upstream:", error.message);
         res.status(500).json({ error: "Falha ao obter manifesto original" });
     }
 });
 
 // ============================================================
-// 3. ROTA REDIRECIONADORA
+// 3. REDIRECIONADOR (Cobre Streams e Catálogos)
 // ============================================================
 app.use('/addon', (req, res) => {
-    res.redirect(307, `${BRAZUCA_UPSTREAM}${req.path}`);
+    // Redireciona todos os pedidos de stream/catalog/meta para o servidor Brazuca
+    const redirectUrl = `${UPSTREAM_BASE}${req.path}`;
+    res.redirect(307, redirectUrl);
 });
 
+
 // ============================================================
-// 4. INTERFACE DO GERADOR (FINAL)
+// 4. INTERFACE DO GERADOR (HTML)
 // ============================================================
 const generatorHtml = `
 <!DOCTYPE html>
@@ -64,7 +72,6 @@ const generatorHtml = `
     <title>Brazuca Wrapper</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Script de Rastreamento Vercel Analytics -->
     <script src="/_vercel/insights/script.js"></script> 
     <style>
         body { background-color: #0a0a0a; color: #e5e5e5; font-family: sans-serif; }
@@ -80,13 +87,14 @@ const generatorHtml = `
         .btn-action:hover { transform: translateY(-2px); shadow: 0 10px 20px rgba(37, 99, 235, 0.3); }
         
         /* Botões de Assinatura */
-        .btn-sub-rd { background: #1e40af; color: #93c5fd; font-weight: 600; font-size: 0.75rem; padding: 10px 12px; border-radius: 0.5rem; border: 1px solid #2563eb; }
-        .btn-sub-rd:hover { background: #2563eb; color: white; }
-
-        .btn-sub-tb { background: #5b21b6; color: #d8b4fe; font-weight: 600; font-size: 0.75rem; padding: 10px 12px; border-radius: 0.5rem; border: 1px solid #9333ea; }
-        .btn-sub-tb:hover { background: #7e22ce; color: white; }
+        .btn-sub { font-weight: 600; font-size: 0.8rem; padding: 10px; border-radius: 0.5rem; border: 1px solid; text-align: center; display: block; transition: 0.2s; }
+        .btn-sub-tb { background: #008000; color: white; border-color: #006400; } /* Verde escuro para TorBox */
+        .btn-sub-rd { background: #2563eb; color: white; border-color: #1e40af; } /* Azul para Real Debrid */
+        .btn-sub-tb:hover { background: #32cd32; }
+        .btn-sub-rd:hover { background: #1e40af; }
         
         .divider { border-top: 1px solid #262626; margin: 25px 0; position: relative; }
+        .input-container { margin-bottom: 1.5rem; }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4 bg-black">
@@ -97,7 +105,7 @@ const generatorHtml = `
         <div class="text-center mb-8">
             <img src="${DEFAULT_LOGO}" id="previewLogo" class="w-20 h-20 mx-auto mb-3 rounded-full border-2 border-gray-800 shadow-lg object-cover">
             <h1 class="text-3xl font-extrabold text-white tracking-tight">Brazuca <span class="text-blue-500">Wrapper</span></h1>
-            <p class="text-gray-500 text-xs mt-1 uppercase tracking-widest">Gerador StremThru v${PROJECT_VERSION}</p>
+            <p class="text-gray-500 text-xs mt-1 uppercase tracking-widest">GERADOR STREMTHRU V${PROJECT_VERSION}</p>
         </div>
 
         <form class="space-y-6">
@@ -106,8 +114,8 @@ const generatorHtml = `
             <div>
                 <label class="text-xs font-bold text-gray-500 uppercase ml-1">1. Servidor (Bridge)</label>
                 <select id="instance" class="w-full input-dark p-3 rounded-lg text-sm mt-1 cursor-pointer">
-                    <option value="https://stremthru.elfhosted.com">Elfhosted</option>
                     <option value="https://stremthrufortheweebs.midnightignite.me">Midnight</option>
+                    <option value="https://stremthru.elfhosted.com">Elfhosted</option>
                 </select>
             </div>
 
@@ -127,36 +135,45 @@ const generatorHtml = `
             <!-- 2. Debrids (Tokens) -->
             <div class="divider"></div>
             
-            <div class="space-y-4">
+            <div class="space-y-6">
                 
-                <!-- Real Debrid -->
+                <!-- TORBOX (Prioridade 1) -->
                 <div class="bg-[#1a1a1a] p-4 rounded-xl border border-gray-800">
-                    <div class="flex items-center gap-2 mb-3">
-                        <input type="checkbox" id="use_rd" class="w-5 h-5 accent-blue-600 cursor-pointer" onchange="validate()">
-                        <span class="text-sm font-bold text-white">Real-Debrid</span>
-                    </div>
-                    
-                    <input type="text" id="rd_key" placeholder="Cole sua API KEY" class="w-full input-dark px-4 py-3 rounded-lg text-sm mb-4" disabled>
-                    
-                    <!-- Botão de Assinatura Único -->
-                    <a href="http://real-debrid.com/?id=6684575" target="_blank" class="btn-sub-rd w-full shadow-lg shadow-blue-900/20">
-                        Assinar Real-Debrid <i class="fas fa-external-link-alt ml-2"></i>
-                    </a>
-                </div>
-
-                <!-- TorBox -->
-                <div class="bg-[#1a1a1a] p-4 rounded-xl border border-gray-800">
-                    <div class="flex items-center gap-2 mb-3">
+                    <div class="flex items-center gap-2 mb-4">
                         <input type="checkbox" id="use_tb" class="w-5 h-5 accent-purple-600 cursor-pointer" onchange="validate()">
                         <span class="text-sm font-bold text-white">TorBox</span>
                     </div>
                     
-                    <input type="text" id="tb_key" placeholder="Cole sua API KEY" class="w-full input-dark px-4 py-3 rounded-lg text-sm mb-4" disabled>
+                    <div class="input-container">
+                        <input type="text" id="tb_key" placeholder="Cole sua API KEY" class="w-full input-dark px-4 py-3 rounded-lg text-sm" disabled>
+                    </div>
                     
-                    <!-- Botão de Assinatura Único -->
-                    <a href="https://torbox.app/subscription?referral=b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96" target="_blank" class="btn-sub-tb w-full shadow-lg shadow-purple-900/20">
-                        Assinar TorBox <i class="fas fa-external-link-alt ml-2"></i>
-                    </a>
+                    <div class="grid grid-cols-1 gap-3">
+                        <a href="https://torbox.app/subscription?referral=${REFERRAL_TB}" target="_blank" class="btn-sub btn-sub-tb w-full shadow-lg shadow-green-900/20 text-center font-bold relative">
+                            Assinar TorBox <i class="fas fa-external-link-alt ml-2"></i>
+                        </a>
+                        <p class="text-xs text-center text-green-400 mt-2">
+                           Ganhe 7 dias Extras: <span id="tb_ref_code" class="font-mono text-xs cursor-pointer select-all underline" onclick="copyRefCode('${REFERRAL_TB}')">${REFERRAL_TB}</span>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- REAL DEBRID (Prioridade 2) -->
+                <div class="bg-[#1a1a1a] p-4 rounded-xl border border-gray-800">
+                    <div class="flex items-center gap-2 mb-4">
+                        <input type="checkbox" id="use_rd" class="w-5 h-5 accent-blue-600 cursor-pointer" onchange="validate()">
+                        <span class="text-sm font-bold text-white">Real-Debrid</span>
+                    </div>
+                    
+                    <div class="input-container">
+                        <input type="text" id="rd_key" placeholder="Cole sua API KEY" class="w-full input-dark px-4 py-3 rounded-lg text-sm" disabled>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 gap-3">
+                        <a href="http://real-debrid.com/?id=${REFERRAL_RD}" target="_blank" class="btn-sub btn-sub-rd w-full shadow-lg shadow-blue-900/20 text-center font-bold">
+                            Assinar Real-Debrid <i class="fas fa-external-link-alt ml-2"></i>
+                        </a>
+                    </div>
                 </div>
             </div>
 
@@ -245,8 +262,8 @@ const generatorHtml = `
             }
 
             const b64 = btoa(JSON.stringify(config));
-            const hostClean = host.replace(/^https?:\\/\\//, '');
             
+            const hostClean = host.replace(/^https?:\\/\\//, '');
             const httpsUrl = \`\${host}/stremio/wrap/\${b64}/manifest.json\`;
             const stremioUrl = \`stremio://\${hostClean}/stremio/wrap/\${b64}/manifest.json\`;
 
@@ -263,14 +280,24 @@ const generatorHtml = `
             document.execCommand('copy');
             const btn = document.querySelector('button[onclick="copyLink()"]');
             const oldTxt = btn.innerText;
-            btn.innerText = "OK!";
+            btn.innerText = "LINK COPIADO!";
             setTimeout(() => btn.innerText = oldTxt, 1500);
+        }
+
+        function copyRefCode(code) {
+            navigator.clipboard.writeText(code).then(() => {
+                const toast = document.getElementById('toast');
+                toast.innerText = "CÓDIGO COPIADO!";
+                toast.classList.remove('hidden');
+                setTimeout(() => toast.classList.add('hidden'), 2000);
+            });
         }
     </script>
 </body>
 </html>
 `;
 
+// Exportar app para Vercel
 app.get('/', (req, res) => res.send(generatorHtml));
 
 app.get('*', (req, res) => {
