@@ -16,8 +16,10 @@ const PROJECT_VERSION = "1.0.0";
 const REFERRAL_RD = "6684575";
 const REFERRAL_TB = "b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96";
 
-// Novo Upstream para o Torrentio filtrado
+// Links de Addons Extras
 const TORRENTIO_PT = "https://torrentio.strem.fun/providers=nyaasi,tokyotosho,anidex,comando,bludv,micoleaodublado|language=portuguese/manifest.json";
+const EZTV_MANIFEST = "https://eztv-api.stremio.fun/manifest.json";
+const TPB_MANIFEST = "https://thepiratebay-plus.stremio.fun/manifest.json";
 
 // ============================================================
 // 2. ROTA MANIFESTO (Proxy)
@@ -163,7 +165,21 @@ const generatorHtml = `
                         <input type="checkbox" id="use_torrentio" class="w-4 h-4 accent-red-600" onchange="validate()">
                         <span class="text-sm font-bold text-gray-300">Incluir Torrentio (PT/BR)</span>
                     </label>
-                    <p class="text-[10px] text-gray-500 mt-1 ml-1">Adiciona fontes com conteúdo focado em português/BR.</p>
+                    <p class="text-[10px] text-gray-500 mt-1 ml-1">Adiciona fontes como Comando e MicoleãoDublado.</p>
+                </div>
+                
+                <div class="bg-[#161616] p-3 rounded border border-gray-800">
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" id="use_eztv" class="w-4 h-4 accent-green-600" onchange="validate()">
+                        <span class="text-sm font-bold text-gray-300">Incluir EZTV (Séries - Global)</span>
+                    </label>
+                </div>
+
+                 <div class="bg-[#161616] p-3 rounded border border-gray-800">
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" id="use_tpb" class="w-4 h-4 accent-yellow-600" onchange="validate()">
+                        <span class="text-sm font-bold text-gray-300">Incluir ThePirateBay (Geral)</span>
+                    </label>
                 </div>
             </div>
 
@@ -234,7 +250,9 @@ const generatorHtml = `
     <script>
         const instanceSelect = document.getElementById('instance');
         const REFERRAL_TB = "${REFERRAL_TB}";
-        const TORRENTIO_PT_URL = "${TORRENTIO_PT}";
+        const TORRENTIO_PT_URL = "https://torrentio.strem.fun/providers=nyaasi,tokyotosho,anidex,comando,bludv,micoleaodublado|language=portuguese/manifest.json";
+        const EZTV_MANIFEST_URL = "https://eztv-api.stremio.fun/manifest.json";
+        const TPB_MANIFEST_URL = "https://thepiratebay-plus.stremio.fun/manifest.json";
 
         function updatePreview() {
             const url = document.getElementById('custom_logo').value.trim();
@@ -297,8 +315,19 @@ const generatorHtml = `
             if (document.getElementById('use_torrentio').checked) {
                 config.upstreams.push({ u: TORRENTIO_PT_URL });
             }
+            
+            // 3. Adiciona EZTV
+            if (document.getElementById('use_eztv').checked) {
+                config.upstreams.push({ u: EZTV_MANIFEST_URL });
+            }
 
-            // 3. Debrids (Tokens)
+            // 4. Adiciona TPB
+            if (document.getElementById('use_tpb').checked) {
+                config.upstreams.push({ u: TPB_MANIFEST_URL });
+            }
+
+
+            // 5. Debrids (Tokens)
             if (document.getElementById('use_rd').checked) {
                 config.stores.push({ c: "rd", t: document.getElementById('rd_key').value.trim() });
             }
@@ -378,8 +407,8 @@ app.get('/addon/manifest.json', async (req, res) => {
 
 // Rotas de Redirecionamento (Streams/Catálogos)
 app.get('/addon/stream/:type/:id.json', async (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Access-Control-Allow-Origin', '*');
     
     try {
         const upstreamUrl = `${UPSTREAM_BASE}${req.path}`;
