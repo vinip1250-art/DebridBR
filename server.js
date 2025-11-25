@@ -49,16 +49,18 @@ app.get('/addon/manifest.json', async (req, res) => {
 });
 
 // ============================================================
-// 3. ROTA REDIRECIONADORA E PROCESSADORA (Formatação)
+// 3. ROTA REDIRECIONADORA (FIX 404)
 // ============================================================
 
 // Captura TODAS as rotas /addon/*
 app.get('/addon/*', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    const upstreamUrl = `${UPSTREAM_BASE}${req.url.replace('/addon', '')}`;
+    
+    const originalPath = req.url.replace('/addon', '');
+    const upstreamUrl = `${UPSTREAM_BASE}${originalPath}`;
     
     // 1. Lógica de Parsing (APENAS SE FOR ROTA DE STREAM)
-    if (req.url.startsWith('/addon/stream/')) {
+    if (originalPath.startsWith('/stream/')) {
         res.setHeader('Content-Type', 'application/json');
         
         try {
@@ -66,7 +68,6 @@ app.get('/addon/*', async (req, res) => {
             let streams = response.data.streams || [];
 
             // Apenas retorna os streams. Deixamos o StremThru Wrapper fazer o parsing
-            // O StremThru fará o parsing usando a string customizada que foi injetada via URL principal
             return res.json({ streams: streams });
 
         } catch (error) {
@@ -81,7 +82,7 @@ app.get('/addon/*', async (req, res) => {
 
 
 // ============================================================
-// 4. INTERFACE (Adicionado campo de Formatação)
+// 4. INTERFACE (Com Selector de Template)
 // ============================================================
 const generatorHtml = `
 <!DOCTYPE html>
@@ -113,6 +114,7 @@ const generatorHtml = `
         
         .divider { border-top: 1px solid #262626; margin: 25px 0; position: relative; }
         .input-container { margin-bottom: 1.5rem; }
+        .textarea-small { font-family: monospace; font-size: 10px; }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4 bg-black">
@@ -154,8 +156,15 @@ const generatorHtml = `
             <div class="divider"></div>
             <div>
                 <label class="text-xs font-bold text-gray-500 uppercase ml-1 block mb-2">2. Formatação Customizada (Opcional)</label>
-                <textarea id="custom_format_string" placeholder='Cole a string de formatação Torrentio/StremThru (ex: {"name": "{stream.resolution::=2160p[...]})' class="w-full input-dark p-2 rounded text-xs h-24 resize-none"></textarea>
-                <p class="text-[10px] text-gray-600">Atenção: Use este campo apenas se tiver uma string de template válida do Torrentio Formatter.</p>
+                
+                <select id="format_selector" onchange="loadFormatTemplate()" class="w-full input-dark p-3 rounded-lg text-sm mb-2 cursor-pointer">
+                    <option value="">-- Escolher um Modelo --</option>
+                    <option value="simple">Simples (FHD • Dual)</option>
+                    <option value="avancado">Avançado (Qualidade + Áudio + Idioma)</option>
+                </select>
+
+                <textarea id="custom_format_string" placeholder='Cole a string JSON de formatação (ex: {"name": "{stream.resolution::=2160p[...]})' class="w-full input-dark p-2 rounded textarea-small h-24 resize-none"></textarea>
+                <p class="text-[10px] text-gray-600">Este código dita o que aparece ao lado do nome do filme no Stremio. (Requer conhecimento de Torrentio Formatter)</p>
             </div>
 
             <!-- 3. Debrids (Tokens) -->
@@ -220,9 +229,35 @@ const generatorHtml = `
         </form>
     </div>
 
+    <div id="toast" class="fixed bottom-5 right-5 bg-green-600 text-white px-4 py-2 rounded shadow-lg hidden">Link Copiado!</div>
+
     <script>
         const instanceSelect = document.getElementById('instance');
         const REFERRAL_TB = "${REFERRAL_TB}";
+
+        const FORMATS = {
+            simple: {
+                name: "{stream.resolution::=2160p[\"4K\"||\"\"]}{stream.resolution::=1080p[\"FHD\"||\"\"]} • {stream.languages::join(' / ')}",
+                description: "{stream.audioTags::join(' | ')} | {stream.visualTags::join(' | ')} | {stream.size::bytes}"
+            },
+            avancado: {
+                name: "{stream.resolution::=2160p[\"🟣 4K\"||\"\"]}{stream.resolution::=1080p[\"🔵 FHD\"||\"\"]}{stream.resolution::=720p[\"🟢 HD\"||\"\"]}{stream.quality::~REMUX[\" 📀 Remux\"||\"\"]}{stream.quality::~DL[\" 🌐 WEB-DL\"||\"\"]}",
+                description: "{stream.visualTags::~HDR[\"📺 HDR\"||\"\"]}{stream.visualTags::~DV[\"🎬 DV\"||\"\"]} | {stream.audioTags::~ATMOS[\"🎧 Atmos\"||\"\"]}{stream.audioTags::~DDP[\"🔊 DD+\"||\"\"]} | {stream.languages::join(' / ')}"
+            }
+        };
+
+        function loadFormatTemplate() {
+            const selector = document.getElementById('format_selector');
+            const textarea = document.getElementById('custom_format_string');
+            const key = selector.value;
+            
+            if (key && FORMATS[key]) {
+                const template = JSON.stringify(FORMATS[key], null, 2);
+                textarea.value = template;
+            } else {
+                textarea.value = '';
+            }
+        }
         
         function updatePreview() {
             const url = document.getElementById('custom_logo').value.trim();
@@ -282,14 +317,13 @@ const generatorHtml = `
                     const encodedFormat = encodeURIComponent(formatString);
                     proxyParams += \`&format=\${encodedFormat}\`;
                 } catch(e) {
-                    console.error("Invalid JSON format string.");
-                    alert("A string de formatação customizada é inválida.");
+                    alert("A string de formatação customizada é inválida. Use JSON válido.");
                     return;
                 }
             }
 
 
-            const myMirrorUrl = window.location.origin + "/addon/manifest.json" + proxyParams;
+            const myMirrorUrl = window.location.origin + "/addon/manifest.json" + proxyParams + "&t=" + Date.now();
 
             let config = { upstreams: [], stores: [] };
             config.upstreams.push({ u: myMirrorUrl });
@@ -380,8 +414,7 @@ app.get('/addon/stream/:type/:id.json', async (req, res) => {
         const response = await axios.get(upstreamUrl);
         let streams = response.data.streams || [];
 
-        // O parsing foi removido daqui para ser feito no cliente (StremThru)
-        // Apenas retornamos os streams originais
+        // Retorna os streams originais para o StremThru fazer o parsing
         return res.json({ streams: streams });
 
     } catch (error) {
@@ -393,8 +426,8 @@ app.get('/addon/stream/:type/:id.json', async (req, res) => {
 // Redireciona todos os outros recursos (catálogos, meta, etc.)
 app.get('/addon/*', (req, res) => {
     const originalPath = req.url.replace('/addon', '');
-    const redirectUrl = `${UPSTREAM_BASE}${originalPath}`;
-    res.redirect(307, redirectUrl);
+    const upstreamUrl = `${UPSTREAM_BASE}${originalPath}`;
+    res.redirect(307, upstreamUrl);
 });
 
 
