@@ -9,7 +9,7 @@ app.use(cors());
 // 1. CONFIGURAÇÕES PADRÃO
 // ============================================================
 const UPSTREAM_BASE = "https://94c8cb9f702d-brazuca-torrents.baby-beamup.club";
-const DEFAULT_NAME = "Brazuca"; // Nome default na interface
+const DEFAULT_NAME = "Brazuca"; 
 const DEFAULT_LOGO = "https://i.imgur.com/KVpfrAk.png";
 const PROJECT_VERSION = "1.0.0"; 
 
@@ -17,8 +17,19 @@ const REFERRAL_RD = "6684575";
 const REFERRAL_TB = "b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96";
 
 // Links de Addons Extras
-// Torrentio PT já está configurado com os indexadores pedidos
 const TORRENTIO_PT = "https://torrentio.strem.fun/providers=nyaasi,tokyotosho,anidex,comando,bludv,micoleaodublado|language=portuguese/manifest.json";
+
+// Manifesto do Torrentio para proxy (Para remover o nome)
+const TORRENTIO_BLANK_MANIFEST = {
+    "id": "community.torrentio.blank",
+    "version": "1.0.0",
+    "name": " ", // Nome Limpo
+    "description": "Torrentio PT/BR Bridge",
+    "resources": ["stream"],
+    "types": ["movie", "series"],
+    "idPrefixes": ["tt"]
+};
+
 
 // ============================================================
 // 2. ROTA MANIFESTO (Proxy)
@@ -38,7 +49,6 @@ app.get('/addon/manifest.json', async (req, res) => {
         const idSuffix = Buffer.from(customName).toString('hex').substring(0, 10);
         
         manifest.id = `community.brazuca.wrapper.${idSuffix}`;
-        // O nome customizado é o nome final que o StremThru irá adicionar o (RD|TB)
         manifest.name = customName; 
         manifest.description = `Wrapper customizado: ${customName}`;
         manifest.logo = customLogo;
@@ -51,6 +61,14 @@ app.get('/addon/manifest.json', async (req, res) => {
         console.error("Upstream manifesto error:", error.message);
         res.status(500).json({ error: "Upstream manifesto error" });
     }
+});
+
+// Rota para servir o manifesto LIMPO do Torrentio
+app.get('/addon/torrentio-blank-manifest.json', (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.json(TORRENTIO_BLANK_MANIFEST);
 });
 
 // ============================================================
@@ -162,9 +180,17 @@ const generatorHtml = `
                 
                 <div class="bg-[#161616] p-3 rounded border border-gray-800">
                     <label class="flex items-center gap-3">
-                        <span class="text-sm font-bold text-gray-300">✔ Brazuca (Default) + Torrentio (PT/BR)</span>
+                        <span class="text-sm font-bold text-gray-300">✔ Brazuca (Default)</span>
                     </label>
-                    <p class="text-[10px] text-gray-500 mt-1 ml-1">Ambos os addons são sempre incluídos para resultados máximos em português/BR.</p>
+                    <p class="text-[10px] text-gray-500 mt-1 ml-1">O addon Brazuca é sempre incluído como fonte primária.</p>
+                </div>
+                
+                 <div class="bg-[#161616] p-3 rounded border border-gray-800">
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" id="use_torrentio" class="w-4 h-4 accent-red-600" onchange="validate()">
+                        <span class="text-sm font-bold text-gray-300">Incluir Torrentio (PT/BR)</span>
+                    </label>
+                    <p class="text-[10px] text-gray-500 mt-1 ml-1">Adiciona fontes como Comando e MicoleãoDublado.</p>
                 </div>
             </div>
 
@@ -284,6 +310,7 @@ const generatorHtml = `
 
             const cName = document.getElementById('custom_name').value.trim();
             const cLogo = document.getElementById('custom_logo').value.trim();
+            const useTorrentio = document.getElementById('use_torrentio').checked;
             
             // Corrige o nome default para evitar string vazia
             const finalName = cName || "Brazuca"; 
@@ -298,8 +325,10 @@ const generatorHtml = `
             // 1. Adiciona o Brazuca Customizado (Nosso Proxy)
             config.upstreams.push({ u: myMirrorUrl });
             
-            // 2. Adiciona o Torrentio PT (PADRÃO)
-            config.upstreams.push({ u: TORRENTIO_PT_URL });
+            // 2. Adiciona o Torrentio PT (OPCIONAL)
+            if (useTorrentio) {
+                config.upstreams.push({ u: TORRENTIO_PT_URL });
+            }
             
             // 3. Debrids (Tokens)
             if (document.getElementById('use_rd').checked) {
@@ -345,6 +374,7 @@ const generatorHtml = `
 </html>
 `;
 
+// Rota Principal (Servir HTML)
 app.get('/', (req, res) => res.send(generatorHtml));
 app.get('/configure', (req, res) => res.send(generatorHtml));
 
