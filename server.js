@@ -9,7 +9,7 @@ app.use(cors());
 // 1. CONFIGURAÇÕES PADRÃO
 // ============================================================
 const UPSTREAM_BASE = "https://94c8cb9f702d-brazuca-torrents.baby-beamup.club";
-const DEFAULT_NAME = "Brazuca"; 
+const DEFAULT_NAME = "Brazuca + PT"; // Nome base mais coerente
 const DEFAULT_LOGO = "https://i.imgur.com/KVpfrAk.png";
 const PROJECT_VERSION = "1.0.0"; 
 
@@ -17,7 +17,6 @@ const REFERRAL_RD = "6684575";
 const REFERRAL_TB = "b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96";
 
 // Links de Addons Extras
-// Torrentio PT já está configurado com os indexadores pedidos (Comando, BluDv, etc.)
 const TORRENTIO_PT = "https://torrentio.strem.fun/providers=nyaasi,tokyotosho,anidex,comando,bludv,micoleaodublado|language=portuguese/manifest.json";
 
 // ============================================================
@@ -38,8 +37,8 @@ app.get('/addon/manifest.json', async (req, res) => {
         const idSuffix = Buffer.from(customName).toString('hex').substring(0, 10);
         
         manifest.id = `community.brazuca.wrapper.${idSuffix}`;
-        // UNIFICAÇÃO DE NOME: Adicionamos o Torrentio ao nome base
-        manifest.name = `${customName} + Torrents PT`; 
+        // O nome customizado é o nome final que o StremThru irá adicionar o (RD|TB)
+        manifest.name = customName; 
         manifest.description = `Wrapper customizado: ${customName}`;
         manifest.logo = customLogo;
         manifest.version = PROJECT_VERSION; 
@@ -147,7 +146,7 @@ const generatorHtml = `
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="text-[10px] font-bold text-gray-500 uppercase">Nome do Addon</label>
-                    <input type="text" id="custom_name" value="${DEFAULT_NAME}" class="w-full input-dark p-2 rounded text-sm mt-1">
+                    <input type="text" id="custom_name" value="${DEFAULT_NAME} + Torrents PT" class="w-full input-dark p-2 rounded text-sm mt-1">
                 </div>
                 <div>
                     <label class="text-[10px] font-bold text-gray-500 uppercase">Ícone (URL)</label>
@@ -164,7 +163,7 @@ const generatorHtml = `
                     <label class="flex items-center gap-3">
                         <span class="text-sm font-bold text-gray-300">✔ Brazuca (Default) + Torrentio (PT/BR)</span>
                     </label>
-                    <p class="text-[10px] text-gray-500 mt-1 ml-1">Estes addons são sempre incluídos para resultados em português/BR.</p>
+                    <p class="text-[10px] text-gray-500 mt-1 ml-1">Ambos os addons são sempre incluídos para resultados máximos em português/BR.</p>
                 </div>
             </div>
 
@@ -173,7 +172,7 @@ const generatorHtml = `
             
             <div class="space-y-6">
                 
-                <!-- TORBOX -->
+                <!-- TORBOX (Primeiro) -->
                 <div class="bg-[#1a1a1a] p-4 rounded-xl border border-gray-800">
                     <div class="flex items-center gap-2 mb-4">
                         <input type="checkbox" id="use_tb" class="w-5 h-5 accent-purple-600 cursor-pointer" onchange="validate()">
@@ -192,7 +191,7 @@ const generatorHtml = `
                     </div>
                 </div>
 
-                <!-- REAL DEBRID -->
+                <!-- REAL DEBRID (Segundo) -->
                 <div class="bg-[#1a1a1a] p-4 rounded-xl border border-gray-800">
                     <div class="flex items-center gap-2 mb-4">
                         <input type="checkbox" id="use_rd" class="w-5 h-5 accent-blue-600 cursor-pointer" onchange="validate()">
@@ -309,7 +308,7 @@ const generatorHtml = `
             
             const hostClean = host.replace(/^https?:\\/\\//, '');
             const httpsUrl = \`\${host}/stremio/wrap/\${b64}/manifest.json\`;
-            const stremioUrl = \`stremio://\${hostClean}/stremio/wrap/\${b64}/manifest.json\`; // Alterado para manifest.json
+            const stremioUrl = \`stremio://\${hostClean}/stremio/wrap/\${b64}/manifest.json\`; 
 
             document.getElementById('finalUrl').value = httpsUrl;
             document.getElementById('installBtn').href = stremioUrl;
