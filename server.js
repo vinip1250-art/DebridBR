@@ -6,18 +6,21 @@ const app = express();
 app.use(cors());
 
 // ============================================================
-// 1. CONFIGURAÇÕES PADRÃO (Versão 38.0)
+// 1. CONFIGURAÇÕES PADRÃO (v1.0.0 - Limpo e Estável)
 // ============================================================
 const UPSTREAM_BASE = "https://94c8cb9f702d-brazuca-torrents.baby-beamup.club";
 const DEFAULT_NAME = "Brazuca"; 
 const DEFAULT_LOGO = "https://i.imgur.com/KVpfrAk.png";
 const PROJECT_VERSION = "1.0.0"; 
 
-// ============================================================
-// 2. LÓGICA DE PROXY E REDIRECIONAMENTO
-// ============================================================
+// Códigos de Referência
+const REFERRAL_RD = "6684575";
+const REFERRAL_TB = "b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96";
 
-// Rota Principal para o Manifesto (Lida com o StremThru)
+
+// ============================================================
+// 2. ROTA MANIFESTO (Proxy para Renomeação)
+// ============================================================
 app.get('/addon/manifest.json', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'application/json');
@@ -30,6 +33,7 @@ app.get('/addon/manifest.json', async (req, res) => {
         const response = await axios.get(`${UPSTREAM_BASE}/manifest.json`);
         const manifest = response.data;
 
+        // Geramos ID baseado no nome para que o Stremio veja como único
         const idSuffix = Buffer.from(customName).toString('hex').substring(0, 10);
         
         manifest.id = `community.brazuca.wrapper.${idSuffix}`;
@@ -42,22 +46,15 @@ app.get('/addon/manifest.json', async (req, res) => {
         
         res.json(manifest);
     } catch (error) {
-        // Se a busca falhar, retorna um JSON de erro simples para o StremThru
-        res.status(500).json({ error: "Upstream manifesto error" });
+        res.status(500).json({ error: "Falha ao obter manifesto original" });
     }
 });
 
-// Rota de Redirecionamento (Cobre /addon/stream/..., /addon/catalog/...)
-// Esta rota garante que o StremThru pegue os streams e catálogos corretos
-app.get('/addon/:resource/:type/:id.json', (req, res) => {
-    const redirectUrl = `${UPSTREAM_BASE}${req.path}`;
-    res.redirect(307, redirectUrl);
-});
-app.get('/addon/:resource/:type/:id/:extra.json', (req, res) => {
-    const redirectUrl = `${UPSTREAM_BASE}${req.path}`;
-    res.redirect(307, redirectUrl);
-});
-app.get('/addon/:resource/:id.json', (req, res) => {
+// ============================================================
+// 3. REDIRECIONADOR (Cobre Streams e Catálogos)
+// ============================================================
+app.use('/addon', (req, res) => {
+    // Redireciona todos os pedidos de stream/catalog/meta para o servidor Brazuca
     const redirectUrl = `${UPSTREAM_BASE}${req.path}`;
     res.redirect(307, redirectUrl);
 });
@@ -87,8 +84,14 @@ const generatorHtml = `
             color: white; font-weight: bold; 
             transition: all 0.3s ease;
         }
-        .btn-ref-rd { background: #1e40af; color: #93c5fd; font-weight: 600; font-size: 0.8rem; padding: 10px; border-radius: 0.5rem; border: 1px solid #2563eb; }
-        .btn-ref-tb { background: #5b21b6; color: #d8b4fe; font-weight: 600; font-size: 0.8rem; padding: 10px; border-radius: 0.5rem; border: 1px solid #9333ea; }
+        .btn-action:hover { transform: translateY(-2px); shadow: 0 10px 20px rgba(37, 99, 235, 0.3); }
+        
+        /* Botões de Assinatura */
+        .btn-sub { font-weight: 600; font-size: 0.8rem; padding: 10px; border-radius: 0.5rem; border: 1px solid; text-align: center; display: block; transition: 0.2s; }
+        .btn-sub-tb { background: #008000; color: white; border-color: #006400; } /* Verde escuro para TorBox */
+        .btn-sub-rd { background: #2563eb; color: white; border-color: #1e40af; } /* Azul para Real Debrid */
+        .btn-sub-tb:hover { background: #32cd32; }
+        .btn-sub-rd:hover { background: #1e40af; }
         
         .divider { border-top: 1px solid #262626; margin: 25px 0; position: relative; }
         .input-container { margin-bottom: 1.5rem; }
@@ -111,8 +114,8 @@ const generatorHtml = `
             <div>
                 <label class="text-xs font-bold text-gray-500 uppercase ml-1">1. Servidor (Bridge)</label>
                 <select id="instance" class="w-full input-dark p-3 rounded-lg text-sm mt-1 cursor-pointer">
-                    <option value="https://stremthru.elfhosted.com">Elfhosted</option>
                     <option value="https://stremthrufortheweebs.midnightignite.me">Midnight</option>
+                    <option value="https://stremthru.elfhosted.com">Elfhosted</option>
                 </select>
             </div>
 
@@ -134,25 +137,7 @@ const generatorHtml = `
             
             <div class="space-y-6">
                 
-                <!-- Real Debrid -->
-                <div class="bg-[#1a1a1a] p-4 rounded-xl border border-gray-800">
-                    <div class="flex items-center gap-2 mb-4">
-                        <input type="checkbox" id="use_rd" class="w-5 h-5 accent-blue-600 cursor-pointer" onchange="validate()">
-                        <span class="text-sm font-bold text-white">Real-Debrid</span>
-                    </div>
-                    
-                    <div class="input-container">
-                        <input type="text" id="rd_key" placeholder="Cole sua API KEY" class="w-full input-dark px-4 py-3 rounded-lg text-sm" disabled>
-                    </div>
-                    
-                    <div class="grid grid-cols-1 gap-3">
-                        <a href="http://real-debrid.com/?id=6684575" target="_blank" class="btn-sub btn-sub-rd w-full shadow-lg shadow-blue-900/20 text-center font-bold">
-                            Assinar Real-Debrid <i class="fas fa-external-link-alt ml-2"></i>
-                        </a>
-                    </div>
-                </div>
-
-                <!-- TorBox -->
+                <!-- TORBOX (Prioridade 1) -->
                 <div class="bg-[#1a1a1a] p-4 rounded-xl border border-gray-800">
                     <div class="flex items-center gap-2 mb-4">
                         <input type="checkbox" id="use_tb" class="w-5 h-5 accent-purple-600 cursor-pointer" onchange="validate()">
@@ -164,8 +149,29 @@ const generatorHtml = `
                     </div>
                     
                     <div class="grid grid-cols-1 gap-3">
-                        <a href="https://torbox.app/subscription?referral=b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96" target="_blank" class="btn-sub btn-sub-tb w-full shadow-lg shadow-purple-900/20 text-center font-bold">
+                        <a href="https://torbox.app/subscription?referral=${REFERRAL_TB}" target="_blank" class="btn-sub btn-sub-tb w-full shadow-lg shadow-green-900/20 text-center font-bold relative">
                             Assinar TorBox <i class="fas fa-external-link-alt ml-2"></i>
+                        </a>
+                        <p class="text-xs text-center text-green-400 mt-2">
+                           Ganhe 7 dias extras por mês assinado: <span id="tb_ref_code" class="font-mono text-xs cursor-pointer select-all underline" onclick="copyRefCode('${REFERRAL_TB}')">${REFERRAL_TB}</span>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- REAL DEBRID (Prioridade 2) -->
+                <div class="bg-[#1a1a1a] p-4 rounded-xl border border-gray-800">
+                    <div class="flex items-center gap-2 mb-4">
+                        <input type="checkbox" id="use_rd" class="w-5 h-5 accent-blue-600 cursor-pointer" onchange="validate()">
+                        <span class="text-sm font-bold text-white">Real-Debrid</span>
+                    </div>
+                    
+                    <div class="input-container">
+                        <input type="text" id="rd_key" placeholder="Cole sua API KEY" class="w-full input-dark px-4 py-3 rounded-lg text-sm" disabled>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 gap-3">
+                        <a href="http://real-debrid.com/?id=${REFERRAL_RD}" target="_blank" class="btn-sub btn-sub-rd w-full shadow-lg shadow-blue-900/20 text-center font-bold">
+                            Assinar Real-Debrid <i class="fas fa-external-link-alt ml-2"></i>
                         </a>
                     </div>
                 </div>
@@ -178,7 +184,7 @@ const generatorHtml = `
                     <button type="button" onclick="copyLink()" class="absolute right-1 top-1 bottom-1 bg-blue-900 hover:bg-blue-800 text-white px-3 rounded text-xs font-bold transition">COPY</button>
                 </div>
                 
-                <a id="installBtn" href="#" class="block w-full btn-action py-3.5 rounded-xl text-center font-bold text-sm uppercase tracking-wide shadow-lg">
+                <a id="installBtn" href="#" class="block w-full btn-action py-3.5 rounded-xl text-center font-bold text-sm uppercase tracking-widest shadow-lg">
                     INSTALAR AGORA
                 </a>
             </div>
@@ -274,15 +280,24 @@ const generatorHtml = `
             document.execCommand('copy');
             const btn = document.querySelector('button[onclick="copyLink()"]');
             const oldTxt = btn.innerText;
-            btn.innerText = "OK!";
+            btn.innerText = "LINK COPIADO!";
             setTimeout(() => btn.innerText = oldTxt, 1500);
+        }
+
+        function copyRefCode(code) {
+            navigator.clipboard.writeText(code).then(() => {
+                const toast = document.getElementById('toast');
+                toast.innerText = "CÓDIGO COPIADO!";
+                toast.classList.remove('hidden');
+                setTimeout(() => toast.classList.add('hidden'), 2000);
+            });
         }
     </script>
 </body>
 </html>
 `;
 
-// Roteamento Final
+// Exportar app para Vercel
 app.get('/', (req, res) => res.send(generatorHtml));
 
 app.get('*', (req, res) => {
@@ -299,4 +314,3 @@ if (process.env.VERCEL) {
         console.log(`Gerador rodando na porta ${PORT}`);
     });
 }
-
