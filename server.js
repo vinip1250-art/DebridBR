@@ -6,21 +6,17 @@ const app = express();
 app.use(cors());
 
 // ============================================================
-// 1. CONFIGURAÇÕES PADRÃO (v1.0.0 - Limpo e Estável)
+// 1. CONFIGURAÇÕES PADRÃO (v39.0 - Roteamento Estrito)
 // ============================================================
 const UPSTREAM_BASE = "https://94c8cb9f702d-brazuca-torrents.baby-beamup.club";
 const DEFAULT_NAME = "Brazuca"; 
 const DEFAULT_LOGO = "https://i.imgur.com/KVpfrAk.png";
 const PROJECT_VERSION = "1.0.0"; 
 
-// Códigos de Referência
-const REFERRAL_RD = "6684575";
-const REFERRAL_TB = "b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96";
-
-
 // ============================================================
 // 2. ROTA MANIFESTO (Proxy para Renomeação)
 // ============================================================
+// Endpoint: /addon/manifest.json
 app.get('/addon/manifest.json', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'application/json');
@@ -33,7 +29,6 @@ app.get('/addon/manifest.json', async (req, res) => {
         const response = await axios.get(`${UPSTREAM_BASE}/manifest.json`);
         const manifest = response.data;
 
-        // Geramos ID baseado no nome para que o Stremio veja como único
         const idSuffix = Buffer.from(customName).toString('hex').substring(0, 10);
         
         manifest.id = `community.brazuca.wrapper.${idSuffix}`;
@@ -46,16 +41,23 @@ app.get('/addon/manifest.json', async (req, res) => {
         
         res.json(manifest);
     } catch (error) {
-        res.status(500).json({ error: "Falha ao obter manifesto original" });
+        // Erro de busca no servidor original
+        res.status(500).json({ error: "Upstream manifesto error" });
     }
 });
 
 // ============================================================
-// 3. REDIRECIONADOR (Cobre Streams e Catálogos)
+// 3. ROTA DE REDIRECIONAMENTO DE RECURSOS
 // ============================================================
-app.use('/addon', (req, res) => {
-    // Redireciona todos os pedidos de stream/catalog/meta para o servidor Brazuca
-    const redirectUrl = `${UPSTREAM_BASE}${req.path}`;
+// Rota: /addon/*
+// O Vercel/Express vai tentar buscar o recurso original (stream, catalog)
+app.get('/addon/*', (req, res) => {
+    // req.url contém a parte após o hostname, ex: /addon/stream/movie/tt123.json
+    // Removemos /addon para obter a URL correta: /stream/movie/tt123.json
+    const originalPath = req.url.replace('/addon', '');
+    const redirectUrl = `${UPSTREAM_BASE}${originalPath}`;
+    
+    console.log(`[Proxy] Redirecting: ${originalPath}`);
     res.redirect(307, redirectUrl);
 });
 
@@ -84,12 +86,10 @@ const generatorHtml = `
             color: white; font-weight: bold; 
             transition: all 0.3s ease;
         }
-        .btn-action:hover { transform: translateY(-2px); shadow: 0 10px 20px rgba(37, 99, 235, 0.3); }
         
-        /* Botões de Assinatura */
         .btn-sub { font-weight: 600; font-size: 0.8rem; padding: 10px; border-radius: 0.5rem; border: 1px solid; text-align: center; display: block; transition: 0.2s; }
-        .btn-sub-tb { background: #008000; color: white; border-color: #006400; } /* Verde escuro para TorBox */
-        .btn-sub-rd { background: #2563eb; color: white; border-color: #1e40af; } /* Azul para Real Debrid */
+        .btn-sub-tb { background: #008000; color: white; border-color: #006400; } 
+        .btn-sub-rd { background: #2563eb; color: white; border-color: #1e40af; } 
         .btn-sub-tb:hover { background: #32cd32; }
         .btn-sub-rd:hover { background: #1e40af; }
         
@@ -137,7 +137,7 @@ const generatorHtml = `
             
             <div class="space-y-6">
                 
-                <!-- TORBOX (Prioridade 1) -->
+                <!-- TORBOX -->
                 <div class="bg-[#1a1a1a] p-4 rounded-xl border border-gray-800">
                     <div class="flex items-center gap-2 mb-4">
                         <input type="checkbox" id="use_tb" class="w-5 h-5 accent-purple-600 cursor-pointer" onchange="validate()">
@@ -149,16 +149,14 @@ const generatorHtml = `
                     </div>
                     
                     <div class="grid grid-cols-1 gap-3">
-                        <a href="https://torbox.app/subscription?referral=${REFERRAL_TB}" target="_blank" class="btn-sub btn-sub-tb w-full shadow-lg shadow-green-900/20 text-center font-bold relative">
+                        <a href="https://torbox.app/subscription?referral=b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96" target="_blank" class="btn-sub btn-sub-tb w-full shadow-lg shadow-purple-900/20 text-center font-bold">
                             Assinar TorBox <i class="fas fa-external-link-alt ml-2"></i>
                         </a>
-                        <p class="text-xs text-center text-green-400 mt-2">
-                           Ganhe 7 dias extras por mês assinado: <span id="tb_ref_code" class="font-mono text-xs cursor-pointer select-all underline" onclick="copyRefCode('${REFERRAL_TB}')">${REFERRAL_TB}</span>
-                        </p>
+                        <p class="text-xs text-center text-green-400 mt-1">Ganhe 7 dias/mês: <span id="tb_ref_code" class="font-mono text-xs cursor-pointer select-all underline" onclick="copyRefCode('${REFERRAL_TB}')">${REFERRAL_TB}</span></p>
                     </div>
                 </div>
 
-                <!-- REAL DEBRID (Prioridade 2) -->
+                <!-- REAL DEBRID -->
                 <div class="bg-[#1a1a1a] p-4 rounded-xl border border-gray-800">
                     <div class="flex items-center gap-2 mb-4">
                         <input type="checkbox" id="use_rd" class="w-5 h-5 accent-blue-600 cursor-pointer" onchange="validate()">
@@ -184,7 +182,7 @@ const generatorHtml = `
                     <button type="button" onclick="copyLink()" class="absolute right-1 top-1 bottom-1 bg-blue-900 hover:bg-blue-800 text-white px-3 rounded text-xs font-bold transition">COPY</button>
                 </div>
                 
-                <a id="installBtn" href="#" class="block w-full btn-action py-3.5 rounded-xl text-center font-bold text-sm uppercase tracking-widest shadow-lg">
+                <a id="installBtn" href="#" class="block w-full btn-action py-3.5 rounded-xl text-center font-bold text-sm uppercase tracking-wide shadow-lg">
                     INSTALAR AGORA
                 </a>
             </div>
@@ -198,6 +196,7 @@ const generatorHtml = `
 
     <script>
         const instanceSelect = document.getElementById('instance');
+        const REFERRAL_TB = "${REFERRAL_TB}";
         
         function updatePreview() {
             const url = document.getElementById('custom_logo').value.trim();
@@ -297,12 +296,44 @@ const generatorHtml = `
 </html>
 `;
 
-// Exportar app para Vercel
+// Rota Principal (Servir HTML)
 app.get('/', (req, res) => res.send(generatorHtml));
+app.get('/configure', (req, res) => res.send(generatorHtml));
 
-app.get('*', (req, res) => {
-    if (req.path.startsWith('/addon')) return res.status(404).send('Not Found');
-    res.redirect('/');
+// Rota do Manifesto (Proxy)
+app.get('/addon/manifest.json', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'public, max-age=60'); 
+    
+    try {
+        const customName = req.query.name || DEFAULT_NAME;
+        const customLogo = req.query.logo || DEFAULT_LOGO;
+        
+        const response = await axios.get(`${UPSTREAM_BASE}/manifest.json`);
+        const manifest = response.data;
+
+        const idSuffix = Buffer.from(customName).toString('hex').substring(0, 10);
+        
+        manifest.id = `community.brazuca.wrapper.${idSuffix}`;
+        manifest.name = customName; 
+        manifest.description = `Wrapper customizado: ${customName}`;
+        manifest.logo = customLogo;
+        manifest.version = PROJECT_VERSION; 
+        
+        delete manifest.background; 
+        
+        res.json(manifest);
+    } catch (error) {
+        res.status(500).json({ error: "Upstream manifesto error" });
+    }
+});
+
+// Rotas de Redirecionamento (Resolver o erro 404/Content-Type)
+app.get('/addon/*', (req, res) => {
+    const originalPath = req.url.replace('/addon', '');
+    const redirectUrl = `${UPSTREAM_BASE}${originalPath}`;
+    res.redirect(307, redirectUrl);
 });
 
 const PORT = process.env.PORT || 7000;
