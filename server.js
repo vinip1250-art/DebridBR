@@ -6,59 +6,15 @@ const app = express();
 app.use(cors());
 
 // ============================================================
-// 1. CONFIGURAÇÕES & FERRAMENTAS
+// 1. CONFIGURAÇÕES PADRÃO (Versão 37.0)
 // ============================================================
 const UPSTREAM_BASE = "https://94c8cb9f702d-brazuca-torrents.baby-beamup.club";
 const DEFAULT_NAME = "Brazuca"; 
 const DEFAULT_LOGO = "https://i.imgur.com/KVpfrAk.png";
 const PROJECT_VERSION = "1.0.0"; 
 
-// Algoritmo de Parsing para formatar o título (baseado no anexo)
-function parseTorrentTitle(originalTitle) {
-    if (!originalTitle) return "";
-    
-    // 1. Normaliza e coloca em maiúsculas para facilitar a correspondência
-    const title = originalTitle.toUpperCase().replace(/\./g, ' ');
-    let quality = [];
-    let audio = [];
-    let tags = [];
-
-    // --- QUALIDADE (Ordem de prioridade: 4K > 1080p) ---
-    if (title.includes('2160P') || title.includes('4K')) quality.push('🟣 4K');
-    else if (title.includes('1080P')) quality.push('🔵 FHD');
-    else if (title.includes('720P')) quality.push('🟢 HD');
-
-    // --- FONTES e QUALIDADE AVANÇADA ---
-    if (title.includes('WEBDL') || title.includes('WEB-DL')) quality.push('🌐 WEB-DL');
-    else if (title.includes('BLURAY')) quality.push('💿 Bluray');
-    
-    if (title.includes('HDR')) tags.push('📺 HDR');
-    if (title.includes('DV') || title.includes('DOLBY VISION')) tags.push('🎬 Dolby Vision');
-    
-    // --- ÁUDIO E IDIOMA ---
-    if (title.includes('ATMO') || title.includes('ATMOS')) audio.push('🎧 Atmos');
-    if (title.includes('DDP') || title.includes('DD+')) audio.push('🔊 DD+');
-    
-    if (title.includes('DUAL') && (title.includes('AUDIO') || title.includes('AUD'))) tags.push('🗣️ Dual Audio');
-    if (title.includes('PT-BR') || title.includes('PT BR') || title.includes('PORTUGUES')) tags.push('🇧🇷 PT-BR');
-
-    // --- GERAL ---
-    if (title.includes('H265') || title.includes('H 265') || title.includes('HEVC')) tags.push('📦 HEVC');
-    if (title.includes('REPACK')) tags.push('♻️ Repack');
-    
-    // 2. Concatenação e Limpeza
-    const segments = [
-        quality.join(' '),
-        audio.join(' '),
-        tags.join(' ')
-    ].filter(s => s.length > 0).join(' • ');
-
-    // Se a formatação falhou, retorna o original limpo
-    return segments || originalTitle.replace(/\./g, ' ').trim();
-}
-
 // ============================================================
-// 3. ROTA MANIFESTO (Proxy)
+// 2. ROTA DO MANIFESTO DINÂMICO (Proxy para Renomear/Trocar Ícone)
 // ============================================================
 app.get('/addon/manifest.json', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -66,12 +22,15 @@ app.get('/addon/manifest.json', async (req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=60'); 
     
     try {
+        // 1. Captura personalizações da URL (Query Params)
         const customName = req.query.name || DEFAULT_NAME;
         const customLogo = req.query.logo || DEFAULT_LOGO;
         
+        // 2. Baixa o original (apenas uma vez)
         const response = await axios.get(`${UPSTREAM_BASE}/manifest.json`);
         const manifest = response.data;
 
+        // 3. Aplica a customização
         const idSuffix = Buffer.from(customName).toString('hex').substring(0, 10);
         
         manifest.id = `community.brazuca.wrapper.${idSuffix}`;
@@ -84,62 +43,21 @@ app.get('/addon/manifest.json', async (req, res) => {
         
         res.json(manifest);
     } catch (error) {
+        console.error("Erro upstream:", error.message);
         res.status(500).json({ error: "Falha ao obter manifesto original" });
     }
 });
 
 // ============================================================
-// 4. ROTA REDIRECIONADORA (COM PARSING)
+// 3. ROTA REDIRECIONADORA
 // ============================================================
-app.use('/addon/stream/:type/:id.json', async (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Type', 'application/json');
-    
-    try {
-        // 1. Busca os streams originais
-        const upstreamUrl = `${UPSTREAM_BASE}${req.path}`;
-        const response = await axios.get(upstreamUrl);
-        let streams = response.data.streams || [];
-
-        // 2. Aplica o Parsing
-        const processedStreams = streams.map(stream => {
-            // O Stremio espera o nome principal no 'name' e a descrição no 'title'
-            
-            // 2.1. Extrai o nome longo original para o parsing
-            const originalTitle = stream.title.replace(/\n/g, ' ').trim(); 
-            
-            // 2.2. Aplica a formatação rica em emojis
-            const formattedDetails = parseTorrentTitle(originalTitle);
-
-            // 2.3. Cria o novo título
-            // O nome do arquivo original (que é gigante) vai para o final do 'name'
-            const finalName = stream.name ? `${stream.name} - ${originalTitle}` : originalTitle;
-
-            return {
-                ...stream,
-                // O StremThru (Wrapper) vai usar o title principal para exibir as fontes
-                title: formattedDetails, 
-                name: finalName // Mantemos a fonte original para o wrapper
-            };
-        });
-
-        // 3. Retorna a lista modificada
-        res.json({ streams: processedStreams });
-
-    } catch (error) {
-        // Se a busca falhar, redireciona o erro, ou retorna vazio
-        res.status(404).json({ streams: [] }); 
-    }
-});
-
-// Redireciona tudo o que não é stream/manifesto
+// Redireciona todos os pedidos de streams, catálogos e meta diretamente para o Brazuca original.
 app.use('/addon', (req, res) => {
     res.redirect(307, `${UPSTREAM_BASE}${req.path}`);
 });
 
-
 // ============================================================
-// 5. INTERFACE
+// 4. INTERFACE DO GERADOR (HTML)
 // ============================================================
 const generatorHtml = `
 <!DOCTYPE html>
@@ -150,6 +68,8 @@ const generatorHtml = `
     <title>Brazuca Wrapper</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Vercel Analytics (apenas se deployado no Vercel) -->
+    <script src="/_vercel/insights/script.js"></script> 
     <style>
         body { background-color: #0a0a0a; color: #e5e5e5; font-family: sans-serif; }
         .card { background-color: #141414; border: 1px solid #262626; }
@@ -164,13 +84,12 @@ const generatorHtml = `
         .btn-action:hover { transform: translateY(-2px); shadow: 0 10px 20px rgba(37, 99, 235, 0.3); }
         
         /* Botões de Assinatura */
-        .btn-sub-rd { background: #1e40af; color: #93c5fd; font-weight: 600; font-size: 0.75rem; padding: 10px 12px; border-radius: 0.5rem; border: 1px solid #2563eb; }
-        .btn-sub-rd:hover { background: #2563eb; color: white; }
-
-        .btn-sub-tb { background: #5b21b6; color: #d8b4fe; font-weight: 600; font-size: 0.75rem; padding: 10px 12px; border-radius: 0.5rem; border: 1px solid #9333ea; }
-        .btn-sub-tb:hover { background: #7e22ce; color: white; }
+        .btn-sub-rd { background: #1e40af; color: #93c5fd; font-weight: 600; font-size: 0.8rem; padding: 10px; border-radius: 0.5rem; border: 1px solid #2563eb; }
+        .btn-sub-tb { background: #5b21b6; color: #d8b4fe; font-weight: 600; font-size: 0.8rem; padding: 10px; border-radius: 0.5rem; border: 1px solid #9333ea; }
         
         .divider { border-top: 1px solid #262626; margin: 25px 0; position: relative; }
+        /* Aumentar espaçamento para a API Key */
+        .input-container { margin-bottom: 1.5rem; }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4 bg-black">
@@ -211,34 +130,36 @@ const generatorHtml = `
             <!-- 2. Debrids (Tokens) -->
             <div class="divider"></div>
             
-            <div class="space-y-4">
+            <div class="space-y-6">
                 
                 <!-- Real Debrid -->
                 <div class="bg-[#1a1a1a] p-4 rounded-xl border border-gray-800">
-                    <div class="flex items-center gap-2 mb-3">
+                    <div class="flex items-center gap-2 mb-4">
                         <input type="checkbox" id="use_rd" class="w-5 h-5 accent-blue-600 cursor-pointer" onchange="validate()">
                         <span class="text-sm font-bold text-white">Real-Debrid</span>
                     </div>
                     
-                    <input type="text" id="rd_key" placeholder="Cole sua API KEY" class="w-full input-dark px-4 py-3 rounded-lg text-sm mb-4" disabled>
+                    <div class="input-container">
+                        <input type="text" id="rd_key" placeholder="Cole sua API KEY" class="w-full input-dark px-4 py-3 rounded-lg text-sm" disabled>
+                    </div>
                     
-                    <!-- Botão de Assinatura Único -->
-                    <a href="http://real-debrid.com/?id=6684575" target="_blank" class="btn-sub-rd w-full shadow-lg shadow-blue-900/20">
+                    <a href="http://real-debrid.com/?id=6684575" target="_blank" class="btn-sub-rd w-full shadow-lg shadow-blue-900/20 text-center font-bold">
                         Assinar Real-Debrid <i class="fas fa-external-link-alt ml-2"></i>
                     </a>
                 </div>
 
                 <!-- TorBox -->
                 <div class="bg-[#1a1a1a] p-4 rounded-xl border border-gray-800">
-                    <div class="flex items-center gap-2 mb-3">
+                    <div class="flex items-center gap-2 mb-4">
                         <input type="checkbox" id="use_tb" class="w-5 h-5 accent-purple-600 cursor-pointer" onchange="validate()">
                         <span class="text-sm font-bold text-white">TorBox</span>
                     </div>
                     
-                    <input type="text" id="tb_key" placeholder="Cole sua API KEY" class="w-full input-dark px-4 py-3 rounded-lg text-sm mb-4" disabled>
+                    <div class="input-container">
+                        <input type="text" id="tb_key" placeholder="Cole sua API KEY" class="w-full input-dark px-4 py-3 rounded-lg text-sm" disabled>
+                    </div>
                     
-                    <!-- Botão de Assinatura Único -->
-                    <a href="https://torbox.app/subscription?referral=b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96" target="_blank" class="btn-sub-tb w-full shadow-lg shadow-purple-900/20">
+                    <a href="https://torbox.app/subscription?referral=b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96" target="_blank" class="btn-sub-tb w-full shadow-lg shadow-purple-900/20 text-center font-bold">
                         Assinar TorBox <i class="fas fa-external-link-alt ml-2"></i>
                     </a>
                 </div>
@@ -329,8 +250,8 @@ const generatorHtml = `
             }
 
             const b64 = btoa(JSON.stringify(config));
-            const hostClean = host.replace(/^https?:\\/\\//, '');
             
+            const hostClean = host.replace(/^https?:\\/\\//, '');
             const httpsUrl = \`\${host}/stremio/wrap/\${b64}/manifest.json\`;
             const stremioUrl = \`stremio://\${hostClean}/stremio/wrap/\${b64}/manifest.json\`;
 
@@ -355,6 +276,7 @@ const generatorHtml = `
 </html>
 `;
 
+// Exportar app para Vercel
 app.get('/', (req, res) => res.send(generatorHtml));
 
 app.get('*', (req, res) => {
