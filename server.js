@@ -16,60 +16,8 @@ const PROJECT_VERSION = "1.0.0";
 const REFERRAL_RD = "6684575";
 const REFERRAL_TB = "b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96";
 
-// Algoritmo de Parsing para formatação rica
-function parseTorrentTitle(originalTitle) {
-    if (!originalTitle) return "";
-    
-    // Normaliza
-    const title = originalTitle.toUpperCase().replace(/[.\-_]/g, ' ');
-    let quality = [];
-    let videoTags = [];
-    let audio = [];
-    let languages = [];
-
-    // --- QUALIDADE DE VÍDEO ---
-    if (title.includes('2160P') || title.includes('4K')) quality.push('🟣 4K');
-    else if (title.includes('1080P')) quality.push('🔵 FHD');
-    else if (title.includes('720P')) quality.push('🟢 HD');
-    
-    // --- FONTE ---
-    if (title.includes('REMUX')) quality.push('📀 Remux');
-    else if (title.includes('BLURAY')) quality.push('💿 BluRay');
-    else if (title.includes('WEBDL') || title.includes('WEB-DL')) quality.push('🌐 WEB-DL');
-    else if (title.includes('WEBRIP')) quality.push('🖥️ WEBRip');
-
-    // --- TAGS AVANÇADAS DE VÍDEO ---
-    if (title.includes('HDR')) videoTags.push('📺 HDR');
-    if (title.includes('DV') || title.includes('DOLBY VISION')) videoTags.push('🎬 Dolby Vision');
-    if (title.includes('H265') || title.includes('HEVC')) videoTags.push('📦 H.265');
-
-    // --- ÁUDIO ---
-    if (title.includes('ATMOS') || title.includes('ATMO')) audio.push('🎧 Atmos');
-    if (title.includes('DDP') || title.includes('DD+') || title.includes('DD5 1')) audio.push('🔊 DD+');
-    if (title.includes('DTS') && !title.includes('DTS-HD')) audio.push('🔊 DTS');
-    if (title.includes('DTS-HD')) audio.push('🔊 DTS-HD');
-    if (title.includes('AC3') || title.includes('EAC3')) audio.push('🔊 AC3');
-    
-    // --- IDIOMA ---
-    if (title.includes('DUAL AUDIO') || title.includes('DUAL AUD')) languages.push('🎙️ Dual');
-    if (title.includes('PT-BR') || title.includes('PORTUGUES')) languages.push('🇧🇷 PT-BR');
-    if (title.includes('LEGENDADO') || title.includes('SUB')) languages.push('📝 Sub');
-
-    // 2. Concatenação: Resolução | Fonte | Vídeo | Áudio | Idioma
-    const formattedSegments = [
-        quality.join(' '),
-        videoTags.join(' '),
-        audio.join(' '),
-        languages.join(' ')
-    ].filter(s => s.length > 0).join(' | ');
-
-    // Retorna formatado
-    return formattedSegments || originalTitle.replace(/[.\-_]/g, ' ').trim();
-}
-
-
 // ============================================================
-// 2. ROTA MANIFESTO (Proxy para Renomeação)
+// 2. ROTA MANIFESTO (Proxy)
 // ============================================================
 app.get('/addon/manifest.json', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -101,57 +49,39 @@ app.get('/addon/manifest.json', async (req, res) => {
 });
 
 // ============================================================
-// 3. ROTA REDIRECIONADORA E PROCESSADORA (FIX 404)
+// 3. ROTA REDIRECIONADORA E PROCESSADORA (Formatação)
 // ============================================================
 
 // Captura TODAS as rotas /addon/*
 app.get('/addon/*', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    
-    // Pega o caminho original (ex: /stream/movie/tt123.json)
-    const originalPath = req.url.replace('/addon', '');
-    const upstreamUrl = `${UPSTREAM_BASE}${originalPath}`;
+    const upstreamUrl = `${UPSTREAM_BASE}${req.url.replace('/addon', '')}`;
     
     // 1. Lógica de Parsing (APENAS SE FOR ROTA DE STREAM)
-    if (originalPath.startsWith('/stream/')) {
+    if (req.url.startsWith('/addon/stream/')) {
         res.setHeader('Content-Type', 'application/json');
         
         try {
             const response = await axios.get(upstreamUrl);
             let streams = response.data.streams || [];
 
-            const processedStreams = streams.map(stream => {
-                const originalTitle = stream.title.replace(/\n/g, ' ').trim(); 
-                const formattedDetails = parseTorrentTitle(originalTitle);
-
-                // O nome final é o que o Stremio/StremThru usa para identificar
-                const finalName = stream.name ? `${stream.name} | ${originalTitle}` : originalTitle;
-
-                return {
-                    ...stream,
-                    // 'title' recebe a formatação rica
-                    title: formattedDetails, 
-                    name: finalName
-                };
-            });
-
-            return res.json({ streams: processedStreams });
+            // Apenas retorna os streams. Deixamos o StremThru Wrapper fazer o parsing
+            // O StremThru fará o parsing usando a string customizada que foi injetada via URL principal
+            return res.json({ streams: streams });
 
         } catch (error) {
-            console.error("Stream Parsing/Fetch Error:", error.message);
-            // Se o upstream falhar (404/Timeout), retornamos JSON de erro amigável
-            return res.json({ streams: [] });
+            console.error("Stream Fetch Error:", error.message);
+            return res.status(404).json({ streams: [] }); 
         }
     }
     
     // 2. Lógica de Redirecionamento (Catálogos, Meta, etc.)
-    // Para todas as outras rotas que não são streams, apenas redireciona 307
     res.redirect(307, upstreamUrl);
 });
 
 
 // ============================================================
-// 4. INTERFACE
+// 4. INTERFACE (Adicionado campo de Formatação)
 // ============================================================
 const generatorHtml = `
 <!DOCTYPE html>
@@ -219,8 +149,16 @@ const generatorHtml = `
                     <input type="text" id="custom_logo" value="${DEFAULT_LOGO}" class="w-full input-dark p-2 rounded text-sm mt-1" onchange="updatePreview()">
                 </div>
             </div>
+            
+            <!-- 2. Customização de Formato -->
+            <div class="divider"></div>
+            <div>
+                <label class="text-xs font-bold text-gray-500 uppercase ml-1 block mb-2">2. Formatação Customizada (Opcional)</label>
+                <textarea id="custom_format_string" placeholder='Cole a string de formatação Torrentio/StremThru (ex: {"name": "{stream.resolution::=2160p[...]})' class="w-full input-dark p-2 rounded text-xs h-24 resize-none"></textarea>
+                <p class="text-[10px] text-gray-600">Atenção: Use este campo apenas se tiver uma string de template válida do Torrentio Formatter.</p>
+            </div>
 
-            <!-- 2. Debrids (Tokens) -->
+            <!-- 3. Debrids (Tokens) -->
             <div class="divider"></div>
             
             <div class="space-y-6">
@@ -332,11 +270,26 @@ const generatorHtml = `
 
             const cName = document.getElementById('custom_name').value.trim();
             const cLogo = document.getElementById('custom_logo').value.trim();
+            const formatString = document.getElementById('custom_format_string').value.trim();
             
             let proxyParams = \`?name=\${encodeURIComponent(cName)}\`;
             if(cLogo) proxyParams += \`&logo=\${encodeURIComponent(cLogo)}\`;
 
-            const myMirrorUrl = window.location.origin + "/addon/manifest.json" + proxyParams + "&t=" + Date.now();
+            // Adiciona a string de formatação customizada se existir
+            if (formatString) {
+                try {
+                    // O StremThru espera que a string seja um JSON válido de formatação
+                    const encodedFormat = encodeURIComponent(formatString);
+                    proxyParams += \`&format=\${encodedFormat}\`;
+                } catch(e) {
+                    console.error("Invalid JSON format string.");
+                    alert("A string de formatação customizada é inválida.");
+                    return;
+                }
+            }
+
+
+            const myMirrorUrl = window.location.origin + "/addon/manifest.json" + proxyParams;
 
             let config = { upstreams: [], stores: [] };
             config.upstreams.push({ u: myMirrorUrl });
@@ -427,23 +380,12 @@ app.get('/addon/stream/:type/:id.json', async (req, res) => {
         const response = await axios.get(upstreamUrl);
         let streams = response.data.streams || [];
 
-        const processedStreams = streams.map(stream => {
-            const originalTitle = stream.title.replace(/\n/g, ' ').trim(); 
-            const formattedDetails = parseTorrentTitle(originalTitle);
-
-            const finalName = stream.name ? `${stream.name} | ${originalTitle}` : originalTitle;
-
-            return {
-                ...stream,
-                title: formattedDetails, 
-                name: finalName
-            };
-        });
-
-        res.json({ streams: processedStreams });
+        // O parsing foi removido daqui para ser feito no cliente (StremThru)
+        // Apenas retornamos os streams originais
+        return res.json({ streams: streams });
 
     } catch (error) {
-        // Se a busca falhar, retorna JSON de erro amigável
+        console.error("Stream Fetch Error:", error.message);
         res.status(404).json({ streams: [] }); 
     }
 });
