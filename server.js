@@ -16,53 +16,27 @@ const PROJECT_VERSION = "1.0.0";
 const REFERRAL_RD = "6684575";
 const REFERRAL_TB = "b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96";
 
-// Algoritmo de Parsing para formatar o título (baseado no formato desejado)
+// Algoritmo de Parsing Simples e Estável
 function parseTorrentTitle(originalTitle) {
     if (!originalTitle) return "";
     
+    // Normaliza
     const title = originalTitle.toUpperCase().replace(/[.\-_]/g, ' ');
-    let quality = [];
-    let audio = [];
-    let languages = [];
-    let generalTags = [];
+    let segments = [];
 
     // --- QUALIDADE ---
-    if (title.includes('2160P') || title.includes('4K')) quality.push('🎞️ 4K');
-    else if (title.includes('1080P')) quality.push('🎞️ FHD');
-    else if (title.includes('720P')) quality.push('💿 HD');
+    if (title.includes('2160P') || title.includes('4K')) segments.push('🎞️ 4K');
+    else if (title.includes('1080P')) segments.push('🎞️ FHD');
+    else if (title.includes('720P')) segments.push('💿 HD');
     
-    if (title.includes('REMUX')) generalTags.push('📀 Remux');
-    else if (title.includes('BLURAY')) generalTags.push('💿 BluRay');
-    else if (title.includes('WEBDL') || title.includes('WEB-DL')) generalTags.push('🌐 WEB-DL');
-    else if (title.includes('WEBRIP')) generalTags.push('🖥️ WEBRip');
-
-    // --- QUALIDADE AVANÇADA / VÍDEO ---
-    if (title.includes('HDR')) quality.push('📺 HDR');
-    if (title.includes('DV') || title.includes('DOLBY VISION')) quality.push('🎬 Dolby Vision');
-    if (title.includes('H265') || title.includes('HEVC')) generalTags.push('📦 H.265');
-
-    // --- ÁUDIO ---
-    if (title.includes('ATMO') || title.includes('ATMOS')) audio.push('🎧 Atmos');
-    if (title.includes('DTS')) audio.push('🔊 DTS-HD');
-    if (title.includes('DDP') || title.includes('DD+')) audio.push('🔊 DD+');
+    // --- TAGS ---
+    if (title.includes('WEBDL') || title.includes('WEB-DL')) segments.push('🌐 WEB-DL');
+    if (title.includes('HDR')) segments.push('📺 HDR');
+    if (title.includes('ATMOS')) segments.push('🎧 Atmos');
+    if (title.includes('DUAL') || title.includes('PT-BR')) segments.push('🗣️ Dual/BR');
     
-    // --- IDIOMA ---
-    if (title.includes('DUAL AUDIO') || title.includes('DUAL AUD')) languages.push('🗣️ Dual');
-    if (title.includes('PT-BR') || title.includes('PORTUGUES')) languages.push('🇧🇷 PT-BR');
-    
-    // --- TAMANHO (Apenas se o upstream não informar) ---
-    // (A URL do Brazuca não informa o tamanho, mas o Stremio pode pegar do magnet)
-
-    // 2. Concatenação: Resolução / Qualidade / Áudio / Idioma
-    const formattedSegments = [
-        quality.join(' '),
-        generalTags.join(' '),
-        audio.join(' '),
-        languages.join(' ')
-    ].filter(s => s.length > 0).join(' • ');
-
-    // Se o resultado for vazio, retorna o original limpo
-    return formattedSegments || originalTitle.replace(/[.\-_]/g, ' ').trim();
+    // Retorna formatado ou o original limpo
+    return segments.join(' • ') || originalTitle.replace(/[.\-_]/g, ' ').trim();
 }
 
 
@@ -99,46 +73,49 @@ app.get('/addon/manifest.json', async (req, res) => {
 });
 
 // ============================================================
-// 3. ROTA REDIRECIONADORA (COM PARSING AGORA)
+// 3. ROTA REDIRECIONADORA DE RECURSOS (FIX 404)
 // ============================================================
-app.get('/addon/stream/:type/:id.json', async (req, res) => {
+
+// Captura todas as rotas de streams, catálogos e metadados (/addon/*)
+app.get('/addon/*', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Type', 'application/json');
     
-    try {
-        // 1. Busca os streams originais
-        const upstreamUrl = `${UPSTREAM_BASE}${req.path}`;
-        const response = await axios.get(upstreamUrl);
-        let streams = response.data.streams || [];
-
-        // 2. Aplica o Parsing
-        const processedStreams = streams.map(stream => {
-            const originalTitle = stream.title.replace(/\n/g, ' ').trim(); 
-            const formattedDetails = parseTorrentTitle(originalTitle);
-
-            // Mantemos o title original no final do name para debugging
-            const finalName = stream.name ? `${stream.name} | ${originalTitle.substring(0, 40)}...` : originalTitle;
-
-            return {
-                ...stream,
-                title: formattedDetails, // O StremThru (Wrapper) vai usar essa linha formatada
-                name: finalName // Mantemos o nome de origem para o wrapper
-            };
-        });
-
-        res.json({ streams: processedStreams });
-
-    } catch (error) {
-        // Se a busca falhar, retorna erro
-        res.status(404).json({ streams: [] }); 
-    }
-});
-
-// Redireciona todos os outros recursos (catálogos, meta, etc.)
-app.get('/addon/*', (req, res) => {
+    // Pega o caminho original (ex: /stream/movie/tt123.json)
     const originalPath = req.url.replace('/addon', '');
-    const redirectUrl = `${UPSTREAM_BASE}${originalPath}`;
-    res.redirect(307, redirectUrl);
+    const upstreamUrl = `${UPSTREAM_BASE}${originalPath}`;
+    
+    // 1. Lógica de Parsing (APENAS SE FOR ROTA DE STREAM)
+    if (originalPath.startsWith('/stream/')) {
+        res.setHeader('Content-Type', 'application/json');
+        
+        try {
+            const response = await axios.get(upstreamUrl);
+            let streams = response.data.streams || [];
+
+            // Aplica o Parsing no Título
+            const processedStreams = streams.map(stream => {
+                const originalTitle = stream.title.replace(/\n/g, ' ').trim(); 
+                const formattedDetails = parseTorrentTitle(originalTitle);
+                
+                return {
+                    ...stream,
+                    // O nome principal (name) é importante para o Debrid/StremThru
+                    // O título (title) é o que aparece na lista
+                    title: formattedDetails, 
+                    name: stream.name || originalTitle
+                };
+            });
+
+            return res.json({ streams: processedStreams });
+
+        } catch (error) {
+            // Se o upstream falhar (404/Timeout), retornamos vazio (Sem resultados)
+            return res.json({ streams: [] });
+        }
+    }
+    
+    // 2. Lógica de Redirecionamento (Para Catálogos, Meta, etc.)
+    res.redirect(307, upstreamUrl);
 });
 
 
@@ -411,7 +388,7 @@ app.get('/addon/manifest.json', async (req, res) => {
 });
 
 // Rotas de Redirecionamento (Streams/Catálogos)
-// Esta rota é a que aplica o parsing.
+// Esta rota é a que aplica o parsing e resolve o 404.
 app.get('/addon/stream/:type/:id.json', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'application/json');
@@ -422,7 +399,7 @@ app.get('/addon/stream/:type/:id.json', async (req, res) => {
         const response = await axios.get(upstreamUrl);
         let streams = response.data.streams || [];
 
-        // 2. Aplica o Parsing Simples
+        // 2. Aplica o Parsing
         const processedStreams = streams.map(stream => {
             const originalTitle = stream.title.replace(/\n/g, ' ').trim(); 
             const formattedDetails = parseTorrentTitle(originalTitle);
@@ -431,28 +408,29 @@ app.get('/addon/stream/:type/:id.json', async (req, res) => {
 
             return {
                 ...stream,
-                title: formattedDetails, 
-                name: finalName
+                title: formattedDetails, // O StremThru (Wrapper) vai usar essa linha formatada
+                name: finalName // Mantemos o nome de origem para o wrapper
             };
         });
 
         res.json({ streams: processedStreams });
 
     } catch (error) {
-        console.error("Stream Parsing/Fetch Error:", error.message);
+        // Se a busca falhar, retorna JSON de erro 404 (sem streams)
         res.status(404).json({ streams: [] }); 
     }
 });
 
-// Rotas de Redirecionamento (Resolver o erro 404/Content-Type)
+// Redireciona todos os outros recursos (catálogos, meta, etc.)
 app.get('/addon/*', (req, res) => {
     const originalPath = req.url.replace('/addon', '');
     const redirectUrl = `${UPSTREAM_BASE}${originalPath}`;
     res.redirect(307, redirectUrl);
 });
 
-const PORT = process.env.PORT || 7000;
 
+// Exporta a aplicação para o Vercel Serverless
+const PORT = process.env.PORT || 7000;
 if (process.env.VERCEL) {
     module.exports = app;
 } else {
