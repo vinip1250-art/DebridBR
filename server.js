@@ -18,8 +18,6 @@ const REFERRAL_TB = "b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96";
 
 // Links de Addons Extras
 const TORRENTIO_PT = "https://torrentio.strem.fun/providers=nyaasi,tokyotosho,anidex,comando,bludv,micoleaodublado|language=portuguese/manifest.json";
-const EZTV_MANIFEST = "https://eztv-api.stremio.fun/manifest.json";
-const TPB_MANIFEST = "https://thepiratebay-plus.stremio.fun/manifest.json";
 
 // ============================================================
 // 2. ROTA MANIFESTO (Proxy)
@@ -72,7 +70,6 @@ app.get('/addon/*', async (req, res) => {
             const response = await axios.get(upstreamUrl);
             let streams = response.data.streams || [];
 
-            // Retorna os streams originais sem parsing
             return res.json({ streams: streams });
 
         } catch (error) {
@@ -166,21 +163,7 @@ const generatorHtml = `
                         <input type="checkbox" id="use_torrentio" checked class="w-4 h-4 accent-red-600" onchange="validate()">
                         <span class="text-sm font-bold text-gray-300">Incluir Torrentio (PT/BR)</span>
                     </label>
-                    <p class="text-[10px] text-gray-500 mt-1 ml-1">Torrentio Customizado incluso por padrão.</p>
-                </div>
-                
-                <div class="bg-[#161616] p-3 rounded border border-gray-800">
-                    <label class="flex items-center gap-3 cursor-pointer">
-                        <input type="checkbox" id="use_eztv" class="w-4 h-4 accent-green-600" onchange="validate()">
-                        <span class="text-sm font-bold text-gray-300">Incluir EZTV (Séries - Global)</span>
-                    </label>
-                </div>
-
-                 <div class="bg-[#161616] p-3 rounded border border-gray-800">
-                    <label class="flex items-center gap-3 cursor-pointer">
-                        <input type="checkbox" id="use_tpb" class="w-4 h-4 accent-yellow-600" onchange="validate()">
-                        <span class="text-sm font-bold text-gray-300">Incluir ThePirateBay (Geral)</span>
-                    </label>
+                    <p class="text-[10px] text-gray-500 mt-1 ml-1">Torrentio Customizado (Comando, MicoleãoDublado) incluso por padrão.</p>
                 </div>
             </div>
 
@@ -251,9 +234,7 @@ const generatorHtml = `
     <script>
         const instanceSelect = document.getElementById('instance');
         const REFERRAL_TB = "${REFERRAL_TB}";
-        const TORRENTIO_PT_URL = "https://torrentio.strem.fun/providers=nyaasi,tokyotosho,anidex,comando,bludv,micoleadublado|language=portuguese/manifest.json";
-        const EZTV_MANIFEST_URL = "https://eztv-api.stremio.fun/manifest.json";
-        const TPB_MANIFEST_URL = "https://thepiratebay-plus.stremio.fun/manifest.json";
+        const TORRENTIO_PT_URL = "${TORRENTIO_PT}";
 
         function updatePreview() {
             const url = document.getElementById('custom_logo').value.trim();
@@ -266,9 +247,7 @@ const generatorHtml = `
             const rdInput = document.getElementById('rd_key');
             const tbInput = document.getElementById('tb_key');
             const btn = document.getElementById('btnGenerate');
-            const useTorrentio = document.getElementById('use_torrentio').checked;
 
-            // Habilita/Desabilita o input e esmaece o pai
             rdInput.disabled = !rd;
             tbInput.disabled = !tb;
 
@@ -278,7 +257,6 @@ const generatorHtml = `
             if(!rd) rdInput.value = '';
             if(!tb) tbInput.value = '';
             
-            // Revalida a chave de 5 caracteres
             const isValid = (rd && rdInput.value.trim().length > 5) || (tb && tbInput.value.trim().length > 5);
 
             if(isValid) {
@@ -305,8 +283,6 @@ const generatorHtml = `
             const cName = document.getElementById('custom_name').value.trim();
             const cLogo = document.getElementById('custom_logo').value.trim();
             const useTorrentio = document.getElementById('use_torrentio').checked;
-            const useEztv = document.getElementById('use_eztv').checked;
-            const useTpb = document.getElementById('use_tpb').checked;
             
             let proxyParams = \`?name=\${encodeURIComponent(cName)}\`;
             if(cLogo) proxyParams += \`&logo=\${encodeURIComponent(cLogo)}\`;
@@ -320,10 +296,7 @@ const generatorHtml = `
             
             // 2. Add-ons Extras
             if (useTorrentio) config.upstreams.push({ u: TORRENTIO_PT_URL });
-            if (useEztv) config.upstreams.push({ u: EZTV_MANIFEST_URL });
-            if (useTpb) config.upstreams.push({ u: TPB_MANIFEST_URL });
-
-
+            
             // 3. Debrids (Tokens)
             if (document.getElementById('use_rd').checked) {
                 config.stores.push({ c: "rd", t: document.getElementById('rd_key').value.trim() });
