@@ -17,12 +17,8 @@ const STREMTHRU_HOST = "https://stremthrufortheweebs.midnightignite.me";
 const REFERRAL_RD = "6684575";
 const REFERRAL_TB = "b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96";
 
-// Links de Addons Extras
-const TORRENTIO_PT_BASE_URL = "https://torrentio.strem.fun/providers=nyaasi,tokyotosho,anidex,comando,bludv,micoleaodublado|language=portuguese";
-
-// URLs que serão usadas
-const TORRENTIO_BLANK_MANIFEST = "/addon/torrentio-blank-manifest.json"; // Manifesto sem nome
-const BRAZUCA_PROXY_MANIFEST = "/addon/manifest.json"; // Manifesto principal
+// CORREÇÃO: Constante definida no escopo global
+const TORRENTIO_PT_URL = "https://torrentio.strem.fun/providers=nyaasi,tokyotosho,anidex,comando,bludv,micoleaodublado|language=portuguese/manifest.json";
 
 // ============================================================
 // 2. ROTA MANIFESTO (Proxy)
@@ -56,31 +52,6 @@ app.get('/addon/manifest.json', async (req, res) => {
     }
 });
 
-// Rota para servir o manifesto LIMPO do Torrentio (Truque)
-app.get('/addon/torrentio-blank-manifest.json', (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Cache-Control', 'public, max-age=3600');
-    
-    // Este é o TRUQUE: O manifesto aponta para o stream real do Torrentio,
-    // mas o nome e logo são vazios/customizados.
-    const blankManifest = {
-        "id": "community.torrentio.blank",
-        "version": "1.0.0",
-        "name": " ", // Nome VAZIO
-        "description": "Torrentio PT/BR Bridge",
-        "resources": ["stream"],
-        "types": ["movie", "series"],
-        "idPrefixes": ["tt"],
-        "logo": req.query.logo || DEFAULT_LOGO, // Usa o logo customizado
-        // O StremThru lerá este link para saber onde buscar os streams reais
-        "behaviorHints": {
-            "defaultStreamUrl": `${TORRENTIO_PT_BASE_URL}/stream/`
-        }
-    };
-    res.json(blankManifest);
-});
-
 // ============================================================
 // 3. ROTA REDIRECIONADORA (FIX 404)
 // ============================================================
@@ -97,15 +68,6 @@ app.get('/addon/*', async (req, res) => {
         res.setHeader('Content-Type', 'application/json');
         
         try {
-            // Se o Stremio estiver pedindo streams do nosso Blank Manifesto (ID: torrentio.blank), 
-            // precisamos redirecionar para o Torrentio original.
-            if (req.url.includes('torrentio.blank')) {
-                // A URL deve ser reconstruída para o Torrentio
-                const torrentioStreamUrl = `${TORRENTIO_PT_BASE_URL}${originalPath}`;
-                const torrentioResp = await axios.get(torrentioStreamUrl);
-                return res.json(torrentioResp.data);
-            }
-
             const response = await axios.get(upstreamUrl);
             let streams = response.data.streams || [];
 
@@ -389,7 +351,6 @@ const generatorHtml = `
 </html>
 `;
 
-// Rota Principal (Servir HTML)
 app.get('/', (req, res) => res.send(generatorHtml));
 app.get('/configure', (req, res) => res.send(generatorHtml));
 
