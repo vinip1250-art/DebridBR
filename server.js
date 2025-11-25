@@ -18,7 +18,8 @@ const REFERRAL_RD = "6684575";
 const REFERRAL_TB = "b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96";
 
 // Links de Addons Extras
-const TORRENTIO_PT_URL = "https://torrentio.strem.fun/providers=nyaasi,tokyotosho,anidex,comando,bludv,micoleaodublado|language=portuguese/manifest.json";
+// A URL do Torrentio deve ser modificada para ter um nome limpo.
+const TORRENTIO_BLANK_MANIFEST_URL = "https://torrentio.strem.fun/providers=nyaasi,tokyotosho,anidex,comando,bludv,micoleaodublado|language=portuguese/manifest.json?name=%20"; // Adiciona nome=%20 para limpar a string
 
 // ============================================================
 // 2. ROTA MANIFESTO (Proxy)
@@ -42,8 +43,6 @@ app.get('/addon/manifest.json', async (req, res) => {
         manifest.description = `Wrapper customizado: ${customName}`;
         manifest.logo = customLogo;
         manifest.version = PROJECT_VERSION; 
-        
-        delete manifest.background; 
         
         res.json(manifest);
     } catch (error) {
@@ -132,7 +131,7 @@ const generatorHtml = `
 
         <form class="space-y-6">
             
-            <!-- 1. Instância -->
+            <!-- 1. Instância (Escondido, usa STREMTHRU_HOST) -->
             <div class="hidden">
                 <label class="text-xs font-bold text-gray-500 uppercase ml-1">1. Servidor (Bridge)</label>
                 <select id="instance" class="w-full input-dark p-3 rounded-lg text-sm mt-1 cursor-pointer">
@@ -238,8 +237,9 @@ const generatorHtml = `
 
     <script>
         const STREMTHRU_HOST = "${STREMTHRU_HOST}";
-        const REFERRAL_TB = "${REFERRAL_TB}";
+        const TORRENTIO_BLANK_URL = window.location.origin + "/addon/torrentio-blank-manifest.json";
         const TORRENTIO_PT_URL = "${TORRENTIO_PT_URL}";
+        const DEFAULT_LOGO_URL = "${DEFAULT_LOGO}";
 
         function updatePreview() {
             const url = document.getElementById('custom_logo').value.trim();
@@ -286,13 +286,11 @@ const generatorHtml = `
             host = host.replace(/\\/$/, '').replace('http:', 'https:');
             if (!host.startsWith('http')) host = 'https://' + host;
 
-            const cName = document.getElementById('custom_name').value.trim();
-            const cLogo = document.getElementById('custom_logo').value.trim();
+            const cName = document.getElementById('custom_name').value.trim() || "Brazuca";
+            const cLogo = document.getElementById('custom_logo').value.trim() || DEFAULT_LOGO;
             const useTorrentio = document.getElementById('use_torrentio').checked;
             
-            const finalName = cName || "Brazuca"; 
-
-            let proxyParams = \`?name=\${encodeURIComponent(finalName)}\`;
+            let proxyParams = \`?name=\${encodeURIComponent(cName)}\`;
             if(cLogo) proxyParams += \`&logo=\${encodeURIComponent(cLogo)}\`;
 
             const myMirrorUrl = window.location.origin + "/addon/manifest.json" + proxyParams + "&t=" + Date.now();
@@ -302,9 +300,12 @@ const generatorHtml = `
             // 1. Adiciona o Brazuca Customizado (Nosso Proxy)
             config.upstreams.push({ u: myMirrorUrl });
             
-            // 2. Adiciona o Torrentio PT (PADRÃO)
+            // 2. Adiciona o Torrentio PT (O manifesto blank é anexado para limpar o nome)
             if (useTorrentio) {
-                config.upstreams.push({ u: TORRENTIO_PT_URL });
+                // Adiciona o manifesto BLANK para o StremThru usar o nome ' ' e o logo customizado
+                // Isso garante que o Brazuca defina o nome principal.
+                const torrentioFinalUrl = TORRENTIO_PT_URL + "?name=%20&logo=" + encodeURIComponent(cLogo);
+                config.upstreams.push({ u: torrentioFinalUrl });
             }
             
             // 3. Debrids (Tokens)
@@ -351,7 +352,6 @@ const generatorHtml = `
 </html>
 `;
 
-// Rota Principal (Servir HTML)
 app.get('/', (req, res) => res.send(generatorHtml));
 app.get('/configure', (req, res) => res.send(generatorHtml));
 
@@ -375,8 +375,6 @@ app.get('/addon/manifest.json', async (req, res) => {
         manifest.description = `Wrapper customizado: ${customName}`;
         manifest.logo = customLogo;
         manifest.version = PROJECT_VERSION; 
-        
-        delete manifest.background; 
         
         res.json(manifest);
     } catch (error) {
