@@ -17,7 +17,7 @@ const STREMTHRU_HOST = "https://stremthrufortheweebs.midnightignite.me";
 const REFERRAL_RD = "6684575";
 const REFERRAL_TB = "b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96";
 
-// CORREÇÃO: Definido no escopo global para que o JS da interface possa usar
+// Links de Addons Extras
 const TORRENTIO_PT_URL = "https://torrentio.strem.fun/providers=nyaasi,tokyotosho,anidex,comando,bludv,micoleaodublado|language=portuguese/manifest.json";
 
 // ============================================================
@@ -349,3 +349,74 @@ const generatorHtml = `
     </script>
 </body>
 </html>
+`;
+
+// Rota Principal (Servir HTML)
+app.get('/', (req, res) => res.send(generatorHtml));
+app.get('/configure', (req, res) => res.send(generatorHtml));
+
+// Rota do Manifesto (Proxy)
+app.get('/addon/manifest.json', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'public, max-age=60'); 
+    
+    try {
+        const customName = req.query.name || DEFAULT_NAME;
+        const customLogo = req.query.logo || DEFAULT_LOGO;
+        
+        const response = await axios.get(`${UPSTREAM_BASE}/manifest.json`);
+        const manifest = response.data;
+
+        const idSuffix = Buffer.from(customName).toString('hex').substring(0, 10);
+        
+        manifest.id = `community.brazuca.wrapper.${idSuffix}`;
+        manifest.name = customName; 
+        manifest.description = `Wrapper customizado: ${customName}`;
+        manifest.logo = customLogo;
+        manifest.version = PROJECT_VERSION; 
+        
+        delete manifest.background; 
+        
+        res.json(manifest);
+    } catch (error) {
+        console.error("Upstream manifesto error:", error.message);
+        res.status(500).json({ error: "Upstream manifesto error" });
+    }
+});
+
+// Rotas de Redirecionamento (Streams/Catálogos)
+app.get('/addon/stream/:type/:id.json', async (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    
+    try {
+        const upstreamUrl = `${UPSTREAM_BASE}${req.path}`;
+        const response = await axios.get(upstreamUrl);
+        let streams = response.data.streams || [];
+
+        return res.json({ streams: streams });
+
+    } catch (error) {
+        console.error("Stream Fetch Error:", error.message);
+        return res.status(404).json({ streams: [] }); 
+    }
+});
+
+// Redireciona todos os outros recursos (catálogos, meta, etc.)
+app.get('/addon/*', (req, res) => {
+    const originalPath = req.url.replace('/addon', '');
+    const upstreamUrl = `${UPSTREAM_BASE}${originalPath}`;
+    res.redirect(307, upstreamUrl);
+});
+
+
+// Exporta a aplicação para o Vercel Serverless
+const PORT = process.env.PORT || 7000;
+if (process.env.VERCEL) {
+    module.exports = app;
+} else {
+    app.listen(PORT, () => {
+        console.log(`Gerador rodando na porta ${PORT}`);
+    });
+}
