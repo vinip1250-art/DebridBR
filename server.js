@@ -16,7 +16,7 @@ const PROJECT_VERSION = "1.0.0";
 const REFERRAL_RD = "6684575";
 const REFERRAL_TB = "b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96";
 
-// Algoritmo de Parsing Simples e Estável
+// Algoritmo de Parsing para formatação rica
 function parseTorrentTitle(originalTitle) {
     if (!originalTitle) return "";
     
@@ -27,7 +27,7 @@ function parseTorrentTitle(originalTitle) {
     let audio = [];
     let languages = [];
 
-    // --- QUALIDADE DE VÍDEO (Primeira prioridade) ---
+    // --- QUALIDADE DE VÍDEO ---
     if (title.includes('2160P') || title.includes('4K')) quality.push('🟣 4K');
     else if (title.includes('1080P')) quality.push('🔵 FHD');
     else if (title.includes('720P')) quality.push('🟢 HD');
@@ -45,7 +45,7 @@ function parseTorrentTitle(originalTitle) {
 
     // --- ÁUDIO ---
     if (title.includes('ATMOS') || title.includes('ATMO')) audio.push('🎧 Atmos');
-    if (title.includes('DDP') || title.includes('DD+')) audio.push('🔊 DD+');
+    if (title.includes('DDP') || title.includes('DD+') || title.includes('DD5 1')) audio.push('🔊 DD+');
     if (title.includes('DTS') && !title.includes('DTS-HD')) audio.push('🔊 DTS');
     if (title.includes('DTS-HD')) audio.push('🔊 DTS-HD');
     if (title.includes('AC3') || title.includes('EAC3')) audio.push('🔊 AC3');
@@ -63,7 +63,7 @@ function parseTorrentTitle(originalTitle) {
         languages.join(' ')
     ].filter(s => s.length > 0).join(' | ');
 
-    // Retorna formatado ou o original limpo (como fallback)
+    // Retorna formatado
     return formattedSegments || originalTitle.replace(/[.\-_]/g, ' ').trim();
 }
 
@@ -101,44 +101,52 @@ app.get('/addon/manifest.json', async (req, res) => {
 });
 
 // ============================================================
-// 3. ROTA REDIRECIONADORA DE RECURSOS (FIX 404)
+// 3. ROTA REDIRECIONADORA E PROCESSADORA (FIX 404)
 // ============================================================
 
-app.get('/addon/stream/:type/:id.json', async (req, res) => {
+// Captura TODAS as rotas /addon/*
+app.get('/addon/*', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Type', 'application/json');
     
-    try {
-        const upstreamUrl = `${UPSTREAM_BASE}${req.path}`;
-        const response = await axios.get(upstreamUrl);
-        let streams = response.data.streams || [];
-
-        const processedStreams = streams.map(stream => {
-            const originalTitle = stream.title.replace(/\n/g, ' ').trim(); 
-            const formattedDetails = parseTorrentTitle(originalTitle);
-
-            const finalName = stream.name ? `${stream.name} | ${originalTitle}` : originalTitle;
-
-            return {
-                ...stream,
-                title: formattedDetails, 
-                name: finalName
-            };
-        });
-
-        res.json({ streams: processedStreams });
-
-    } catch (error) {
-        console.error("Stream Parsing/Fetch Error:", error.message);
-        res.status(404).json({ streams: [] }); 
-    }
-});
-
-// Redireciona todos os outros recursos (catálogos, meta, etc.)
-app.get('/addon/*', (req, res) => {
+    // Pega o caminho original (ex: /stream/movie/tt123.json)
     const originalPath = req.url.replace('/addon', '');
-    const redirectUrl = `${UPSTREAM_BASE}${originalPath}`;
-    res.redirect(307, redirectUrl);
+    const upstreamUrl = `${UPSTREAM_BASE}${originalPath}`;
+    
+    // 1. Lógica de Parsing (APENAS SE FOR ROTA DE STREAM)
+    if (originalPath.startsWith('/stream/')) {
+        res.setHeader('Content-Type', 'application/json');
+        
+        try {
+            const response = await axios.get(upstreamUrl);
+            let streams = response.data.streams || [];
+
+            const processedStreams = streams.map(stream => {
+                const originalTitle = stream.title.replace(/\n/g, ' ').trim(); 
+                const formattedDetails = parseTorrentTitle(originalTitle);
+
+                // O nome final é o que o Stremio/StremThru usa para identificar
+                const finalName = stream.name ? `${stream.name} | ${originalTitle}` : originalTitle;
+
+                return {
+                    ...stream,
+                    // 'title' recebe a formatação rica
+                    title: formattedDetails, 
+                    name: finalName
+                };
+            });
+
+            return res.json({ streams: processedStreams });
+
+        } catch (error) {
+            console.error("Stream Parsing/Fetch Error:", error.message);
+            // Se o upstream falhar (404/Timeout), retornamos JSON de erro amigável
+            return res.json({ streams: [] });
+        }
+    }
+    
+    // 2. Lógica de Redirecionamento (Catálogos, Meta, etc.)
+    // Para todas as outras rotas que não são streams, apenas redireciona 307
+    res.redirect(307, upstreamUrl);
 });
 
 
@@ -376,7 +384,6 @@ const generatorHtml = `
 </html>
 `;
 
-// Rota Principal (Servir HTML)
 app.get('/', (req, res) => res.send(generatorHtml));
 app.get('/configure', (req, res) => res.send(generatorHtml));
 
@@ -436,7 +443,7 @@ app.get('/addon/stream/:type/:id.json', async (req, res) => {
         res.json({ streams: processedStreams });
 
     } catch (error) {
-        console.error("Stream Fetch Error:", error.message);
+        // Se a busca falhar, retorna JSON de erro amigável
         res.status(404).json({ streams: [] }); 
     }
 });
