@@ -6,17 +6,19 @@ const app = express();
 app.use(cors());
 
 // ============================================================
-// 1. CONFIGURAÇÕES PADRÃO (v39.0 - Roteamento Estrito)
+// VARIÁVEIS DE CONFIGURAÇÃO E REFERÊNCIA
 // ============================================================
 const UPSTREAM_BASE = "https://94c8cb9f702d-brazuca-torrents.baby-beamup.club";
 const DEFAULT_NAME = "Brazuca"; 
 const DEFAULT_LOGO = "https://i.imgur.com/KVpfrAk.png";
 const PROJECT_VERSION = "1.0.0"; 
 
+const REFERRAL_RD = "6684575";
+const REFERRAL_TB = "b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96";
+
 // ============================================================
-// 2. ROTA MANIFESTO (Proxy para Renomeação)
+// 1. ROTA MANIFESTO (Proxy para Renomeação)
 // ============================================================
-// Endpoint: /addon/manifest.json
 app.get('/addon/manifest.json', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'application/json');
@@ -41,29 +43,34 @@ app.get('/addon/manifest.json', async (req, res) => {
         
         res.json(manifest);
     } catch (error) {
-        // Erro de busca no servidor original
+        // Log para debug
+        console.error("Upstream manifesto error:", error.message);
         res.status(500).json({ error: "Upstream manifesto error" });
     }
 });
 
 // ============================================================
-// 3. ROTA DE REDIRECIONAMENTO DE RECURSOS
+// 2. REDIRECIONADOR DE RECURSOS E INSIGHTS (CORREÇÃO DE ROTA)
 // ============================================================
-// Rota: /addon/*
-// O Vercel/Express vai tentar buscar o recurso original (stream, catalog)
+
+// Rota de Redirecionamento para Streams/Catálogos do Addon
 app.get('/addon/*', (req, res) => {
-    // req.url contém a parte após o hostname, ex: /addon/stream/movie/tt123.json
-    // Removemos /addon para obter a URL correta: /stream/movie/tt123.json
     const originalPath = req.url.replace('/addon', '');
     const redirectUrl = `${UPSTREAM_BASE}${originalPath}`;
     
-    console.log(`[Proxy] Redirecting: ${originalPath}`);
+    // Usamos 307 (Temporary Redirect) para preservar o método POST/GET
     res.redirect(307, redirectUrl);
 });
 
+// Rota de Insights (Para evitar erro 404/500 no Vercel)
+app.get('/_vercel/insights/script.js', (req, res) => {
+    // Retorna 200 OK e um script vazio para evitar o erro, se o Vercel não injetar
+    res.setHeader('Content-Type', 'application/javascript');
+    res.status(200).send('// Vercel Analytics Placeholder');
+});
 
 // ============================================================
-// 4. INTERFACE DO GERADOR (HTML)
+// 3. INTERFACE DO GERADOR (HTML)
 // ============================================================
 const generatorHtml = `
 <!DOCTYPE html>
@@ -149,10 +156,10 @@ const generatorHtml = `
                     </div>
                     
                     <div class="grid grid-cols-1 gap-3">
-                        <a href="https://torbox.app/subscription?referral=b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96" target="_blank" class="btn-sub btn-sub-tb w-full shadow-lg shadow-purple-900/20 text-center font-bold">
+                        <a href="https://torbox.app/subscription?referral=${REFERRAL_TB}" target="_blank" class="btn-sub btn-sub-tb w-full shadow-lg shadow-purple-900/20 text-center font-bold">
                             Assinar TorBox <i class="fas fa-external-link-alt ml-2"></i>
                         </a>
-                        <p class="text-xs text-center text-green-400 mt-1">Ganhe 7 dias/mês: <span id="tb_ref_code" class="font-mono text-xs cursor-pointer select-all underline" onclick="copyRefCode('${REFERRAL_TB}')">${REFERRAL_TB}</span></p>
+                        <p class="text-xs text-center text-green-400 mt-1">Ganhe 7 dias extras: <span id="tb_ref_code" class="font-mono text-xs cursor-pointer select-all underline" onclick="copyRefCode('${REFERRAL_TB}')">${REFERRAL_TB}</span></p>
                     </div>
                 </div>
 
@@ -325,6 +332,7 @@ app.get('/addon/manifest.json', async (req, res) => {
         
         res.json(manifest);
     } catch (error) {
+        // Se a busca falhar, retorna um JSON de erro simples para o StremThru
         res.status(500).json({ error: "Upstream manifesto error" });
     }
 });
@@ -339,6 +347,7 @@ app.get('/addon/*', (req, res) => {
 const PORT = process.env.PORT || 7000;
 
 if (process.env.VERCEL) {
+    // Exportação da aplicação para o Vercel Serverless
     module.exports = app;
 } else {
     app.listen(PORT, () => {
