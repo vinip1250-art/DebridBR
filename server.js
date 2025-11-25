@@ -6,19 +6,19 @@ const app = express();
 app.use(cors());
 
 // ============================================================
-// 1. CONFIGURAÇÕES PADRÃO
+// 1. CONFIGURAÇÕES PADRÃO (ESCOPO GLOBAL)
 // ============================================================
 const UPSTREAM_BASE = "https://94c8cb9f702d-brazuca-torrents.baby-beamup.club";
 const DEFAULT_NAME = "Brazuca"; 
 const DEFAULT_LOGO = "https://i.imgur.com/KVpfrAk.png";
 const PROJECT_VERSION = "1.0.0"; 
-const STREMTHRU_HOST = "https://stremthrufortheweebs.midnightignite.me"; // Fixado na Midnight
+const STREMTHRU_HOST = "https://stremthrufortheweebs.midnightignite.me"; 
 
 const REFERRAL_RD = "6684575";
 const REFERRAL_TB = "b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96";
 
-// Links de Addons Extras
-const TORRENTIO_PT_BASE = "https://torrentio.strem.fun/providers=nyaasi,tokyotosho,anidex,comando,bludv,micoleaodublado|language=portuguese";
+// CORREÇÃO: Definido no escopo global para que o JS da interface possa usar
+const TORRENTIO_PT_URL = "https://torrentio.strem.fun/providers=nyaasi,tokyotosho,anidex,comando,bludv,micoleaodublado|language=portuguese/manifest.json";
 
 // ============================================================
 // 2. ROTA MANIFESTO (Proxy)
@@ -40,7 +40,7 @@ app.get('/addon/manifest.json', async (req, res) => {
         manifest.id = `community.brazuca.wrapper.${idSuffix}`;
         manifest.name = customName; 
         manifest.description = `Wrapper customizado: ${customName}`;
-        manifest.logo = customLogo; // O StremThru lerá este valor para o ícone
+        manifest.logo = customLogo;
         manifest.version = PROJECT_VERSION; 
         
         delete manifest.background; 
@@ -51,27 +51,6 @@ app.get('/addon/manifest.json', async (req, res) => {
         res.status(500).json({ error: "Upstream manifesto error" });
     }
 });
-
-// Rota para servir o manifesto LIMPO do Torrentio
-app.get('/addon/torrentio-blank-manifest.json', (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Cache-Control', 'public, max-age=3600');
-    
-    // Este é o truque para o StremThru usar o nome ' ' e o nosso logo
-    const blankManifest = {
-        "id": "community.torrentio.blank",
-        "version": "1.0.0",
-        "name": " ", // Nome vazio para evitar concatenação
-        "description": "Torrentio PT/BR Bridge",
-        "resources": ["stream"],
-        "types": ["movie", "series"],
-        "idPrefixes": ["tt"],
-        "logo": req.query.logo || DEFAULT_LOGO
-    };
-    res.json(blankManifest);
-});
-
 
 // ============================================================
 // 3. ROTA REDIRECIONADORA (FIX 404)
@@ -146,7 +125,7 @@ const generatorHtml = `
         
         <!-- Header -->
         <div class="text-center mb-8">
-            <img src="${DEFAULT_LOGO}" id="previewLogo" class="w-20 h-20 mx-auto mb-3 rounded-full border-2 border-gray-800 shadow-lg object-cover">
+            <img src="https://i.imgur.com/KVpfrAk.png" id="previewLogo" class="w-20 h-20 mx-auto mb-3 rounded-full border-2 border-gray-800 shadow-lg object-cover">
             <h1 class="text-3xl font-extrabold text-white tracking-tight">Brazuca <span class="text-blue-500">Wrapper</span></h1>
             <p class="text-gray-500 text-xs mt-1 uppercase tracking-widest">GERADOR STREMTHRU V${PROJECT_VERSION}</p>
         </div>
@@ -260,8 +239,7 @@ const generatorHtml = `
     <script>
         const STREMTHRU_HOST = "${STREMTHRU_HOST}";
         const REFERRAL_TB = "${REFERRAL_TB}";
-        const TORRENTIO_PT_URL = "${TORRENTIO_PT}";
-        const TORRENTIO_BLANK_MANIFEST_URL = window.location.origin + "/addon/torrentio-blank-manifest.json"; // Novo endpoint para o manifesto em branco
+        const TORRENTIO_PT_URL = "${TORRENTIO_PT_URL}";
 
         function updatePreview() {
             const url = document.getElementById('custom_logo').value.trim();
@@ -324,23 +302,8 @@ const generatorHtml = `
             // 1. Adiciona o Brazuca Customizado (Nosso Proxy)
             config.upstreams.push({ u: myMirrorUrl });
             
-            // 2. Adiciona o Torrentio (Como BLANK MANIFEST + PARÂMETROS)
+            // 2. Adiciona o Torrentio PT (PADRÃO)
             if (useTorrentio) {
-                // Adiciona o manifesto em branco para o StremThru não usar o nome original do Torrentio
-                config.upstreams.push({ u: TORRENTIO_BLANK_MANIFEST_URL });
-                
-                // O StremThru (Wrapper) precisa da URL base do Torrentio
-                // Mapeamos a URL do manifesto em branco para a URL de stream do Torrentio PT
-                // O StremThru pega o ID do Blank Manifest e usa a URL de streams do Torrentio PT
-                config.upstreams.push({ u: TORRENTIO_PT_URL.replace('/manifest.json', '') + '/manifest.json' });
-                
-                // NOTA: Esta lógica é complexa e depende da versão do StremThru.
-                // A maneira mais estável é enviar o Blank Manifest e o Torrentio PT.
-                // No entanto, o StremThru vai dar prioridade ao primeiro que aparecer.
-                
-                // Estratégia simples: Apenas adicionamos o manifesto do Torrentio PT
-                // E dependemos do StremThru para priorizar a fonte com o nome mais curto.
-                // Vou remover a lógica do blank manifest para evitar a instabilidade.
                 config.upstreams.push({ u: TORRENTIO_PT_URL });
             }
             
@@ -386,72 +349,3 @@ const generatorHtml = `
     </script>
 </body>
 </html>
-`;
-
-// Rota Principal (Servir HTML)
-app.get('/', (req, res) => res.send(generatorHtml));
-app.get('/configure', (req, res) => res.send(generatorHtml));
-
-// Rota do Manifesto (Proxy)
-app.get('/addon/manifest.json', async (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Cache-Control', 'public, max-age=60'); 
-    
-    try {
-        const customName = req.query.name || DEFAULT_NAME;
-        const customLogo = req.query.logo || DEFAULT_LOGO;
-        
-        const response = await axios.get(`${UPSTREAM_BASE}/manifest.json`);
-        const manifest = response.data;
-
-        const idSuffix = Buffer.from(customName).toString('hex').substring(0, 10);
-        
-        manifest.id = `community.brazuca.wrapper.${idSuffix}`;
-        manifest.name = customName; 
-        manifest.description = `Wrapper customizado: ${customName}`;
-        manifest.logo = customLogo;
-        manifest.version = PROJECT_VERSION; 
-        
-        res.json(manifest);
-    } catch (error) {
-        console.error("Upstream manifesto error:", error.message);
-        res.status(500).json({ error: "Upstream manifesto error" });
-    }
-});
-
-// Rotas de Redirecionamento (Streams/Catálogos)
-app.get('/addon/stream/:type/:id.json', async (req, res) => {
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    
-    try {
-        const upstreamUrl = `${UPSTREAM_BASE}${req.path}`;
-        const response = await axios.get(upstreamUrl);
-        let streams = response.data.streams || [];
-
-        return res.json({ streams: streams });
-
-    } catch (error) {
-        console.error("Stream Fetch Error:", error.message);
-        return res.status(404).json({ streams: [] }); 
-    }
-});
-
-// Redireciona todos os outros recursos (catálogos, meta, etc.)
-app.get('/addon/*', (req, res) => {
-    const originalPath = req.url.replace('/addon', '');
-    const upstreamUrl = `${UPSTREAM_BASE}${originalPath}`;
-    res.redirect(307, upstreamUrl);
-});
-
-
-// Exporta a aplicação para o Vercel Serverless
-const PORT = process.env.PORT || 7000;
-if (process.env.VERCEL) {
-    module.exports = app;
-} else {
-    app.listen(PORT, () => {
-        console.log(`Gerador rodando na porta ${PORT}`);
-    });
-}
