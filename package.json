@@ -1,7 +1,7 @@
 {
   "name": "brazuca-wrapper-final",
-  "version": "35.1.0",
-  "description": "Brazuca Wrapper Generator",
+  "version": "38.0.0",
+  "description": "Brazuca Wrapper Generator (Stable)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -12,8 +12,7 @@
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",
-    "axios": "^1.6.2",
-    "@vercel/analytics": "^1.1.1" 
+    "axios": "^1.6.2"
   }
 }
 
