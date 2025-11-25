@@ -9,7 +9,7 @@ app.use(cors());
 // 1. CONFIGURAÇÕES PADRÃO
 // ============================================================
 const UPSTREAM_BASE = "https://94c8cb9f702d-brazuca-torrents.baby-beamup.club";
-const DEFAULT_NAME = "Brazuca + PT"; // Nome base mais coerente
+const DEFAULT_NAME = "Brazuca"; // Nome default na interface
 const DEFAULT_LOGO = "https://i.imgur.com/KVpfrAk.png";
 const PROJECT_VERSION = "1.0.0"; 
 
@@ -17,6 +17,7 @@ const REFERRAL_RD = "6684575";
 const REFERRAL_TB = "b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96";
 
 // Links de Addons Extras
+// Torrentio PT já está configurado com os indexadores pedidos
 const TORRENTIO_PT = "https://torrentio.strem.fun/providers=nyaasi,tokyotosho,anidex,comando,bludv,micoleaodublado|language=portuguese/manifest.json";
 
 // ============================================================
@@ -146,7 +147,7 @@ const generatorHtml = `
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="text-[10px] font-bold text-gray-500 uppercase">Nome do Addon</label>
-                    <input type="text" id="custom_name" value="${DEFAULT_NAME} + Torrents PT" class="w-full input-dark p-2 rounded text-sm mt-1">
+                    <input type="text" id="custom_name" value="${DEFAULT_NAME}" class="w-full input-dark p-2 rounded text-sm mt-1">
                 </div>
                 <div>
                     <label class="text-[10px] font-bold text-gray-500 uppercase">Ícone (URL)</label>
@@ -172,7 +173,7 @@ const generatorHtml = `
             
             <div class="space-y-6">
                 
-                <!-- TORBOX (Primeiro) -->
+                <!-- TORBOX -->
                 <div class="bg-[#1a1a1a] p-4 rounded-xl border border-gray-800">
                     <div class="flex items-center gap-2 mb-4">
                         <input type="checkbox" id="use_tb" class="w-5 h-5 accent-purple-600 cursor-pointer" onchange="validate()">
@@ -191,7 +192,7 @@ const generatorHtml = `
                     </div>
                 </div>
 
-                <!-- REAL DEBRID (Segundo) -->
+                <!-- REAL DEBRID -->
                 <div class="bg-[#1a1a1a] p-4 rounded-xl border border-gray-800">
                     <div class="flex items-center gap-2 mb-4">
                         <input type="checkbox" id="use_rd" class="w-5 h-5 accent-blue-600 cursor-pointer" onchange="validate()">
@@ -248,6 +249,7 @@ const generatorHtml = `
             const tbInput = document.getElementById('tb_key');
             const btn = document.getElementById('btnGenerate');
 
+            // Habilita/Desabilita inputs e aplica estilo
             rdInput.disabled = !rd;
             tbInput.disabled = !tb;
 
@@ -283,7 +285,10 @@ const generatorHtml = `
             const cName = document.getElementById('custom_name').value.trim();
             const cLogo = document.getElementById('custom_logo').value.trim();
             
-            let proxyParams = \`?name=\${encodeURIComponent(cName)}\`;
+            // Corrige o nome default para evitar string vazia
+            const finalName = cName || "Brazuca"; 
+
+            let proxyParams = \`?name=\${encodeURIComponent(finalName)}\`;
             if(cLogo) proxyParams += \`&logo=\${encodeURIComponent(cLogo)}\`;
 
             const myMirrorUrl = window.location.origin + "/addon/manifest.json" + proxyParams + "&t=" + Date.now();
@@ -340,7 +345,6 @@ const generatorHtml = `
 </html>
 `;
 
-// Rota Principal (Servir HTML)
 app.get('/', (req, res) => res.send(generatorHtml));
 app.get('/configure', (req, res) => res.send(generatorHtml));
 
