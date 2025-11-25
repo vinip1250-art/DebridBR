@@ -72,6 +72,7 @@ app.get('/addon/*', async (req, res) => {
             const response = await axios.get(upstreamUrl);
             let streams = response.data.streams || [];
 
+            // Retorna os streams originais sem parsing
             return res.json({ streams: streams });
 
         } catch (error) {
@@ -126,7 +127,7 @@ const generatorHtml = `
         
         <!-- Header -->
         <div class="text-center mb-8">
-            <img src="https://i.imgur.com/KVpfrAk.png" id="previewLogo" class="w-20 h-20 mx-auto mb-3 rounded-full border-2 border-gray-800 shadow-lg object-cover">
+            <img src="${DEFAULT_LOGO}" id="previewLogo" class="w-20 h-20 mx-auto mb-3 rounded-full border-2 border-gray-800 shadow-lg object-cover">
             <h1 class="text-3xl font-extrabold text-white tracking-tight">Brazuca <span class="text-blue-500">Wrapper</span></h1>
             <p class="text-gray-500 text-xs mt-1 uppercase tracking-widest">GERADOR STREMTHRU V${PROJECT_VERSION}</p>
         </div>
@@ -162,10 +163,10 @@ const generatorHtml = `
                 
                 <div class="bg-[#161616] p-3 rounded border border-gray-800">
                     <label class="flex items-center gap-3 cursor-pointer">
-                        <input type="checkbox" id="use_torrentio" class="w-4 h-4 accent-red-600" onchange="validate()">
+                        <input type="checkbox" id="use_torrentio" checked class="w-4 h-4 accent-red-600" onchange="validate()">
                         <span class="text-sm font-bold text-gray-300">Incluir Torrentio (PT/BR)</span>
                     </label>
-                    <p class="text-[10px] text-gray-500 mt-1 ml-1">Adiciona fontes como Comando e MicoleãoDublado.</p>
+                    <p class="text-[10px] text-gray-500 mt-1 ml-1">Torrentio Customizado incluso por padrão.</p>
                 </div>
                 
                 <div class="bg-[#161616] p-3 rounded border border-gray-800">
@@ -250,7 +251,7 @@ const generatorHtml = `
     <script>
         const instanceSelect = document.getElementById('instance');
         const REFERRAL_TB = "${REFERRAL_TB}";
-        const TORRENTIO_PT_URL = "https://torrentio.strem.fun/providers=nyaasi,tokyotosho,anidex,comando,bludv,micoleaodublado|language=portuguese/manifest.json";
+        const TORRENTIO_PT_URL = "https://torrentio.strem.fun/providers=nyaasi,tokyotosho,anidex,comando,bludv,micoleadublado|language=portuguese/manifest.json";
         const EZTV_MANIFEST_URL = "https://eztv-api.stremio.fun/manifest.json";
         const TPB_MANIFEST_URL = "https://thepiratebay-plus.stremio.fun/manifest.json";
 
@@ -265,7 +266,9 @@ const generatorHtml = `
             const rdInput = document.getElementById('rd_key');
             const tbInput = document.getElementById('tb_key');
             const btn = document.getElementById('btnGenerate');
+            const useTorrentio = document.getElementById('use_torrentio').checked;
 
+            // Habilita/Desabilita o input e esmaece o pai
             rdInput.disabled = !rd;
             tbInput.disabled = !tb;
 
@@ -275,6 +278,7 @@ const generatorHtml = `
             if(!rd) rdInput.value = '';
             if(!tb) tbInput.value = '';
             
+            // Revalida a chave de 5 caracteres
             const isValid = (rd && rdInput.value.trim().length > 5) || (tb && tbInput.value.trim().length > 5);
 
             if(isValid) {
@@ -300,6 +304,9 @@ const generatorHtml = `
 
             const cName = document.getElementById('custom_name').value.trim();
             const cLogo = document.getElementById('custom_logo').value.trim();
+            const useTorrentio = document.getElementById('use_torrentio').checked;
+            const useEztv = document.getElementById('use_eztv').checked;
+            const useTpb = document.getElementById('use_tpb').checked;
             
             let proxyParams = \`?name=\${encodeURIComponent(cName)}\`;
             if(cLogo) proxyParams += \`&logo=\${encodeURIComponent(cLogo)}\`;
@@ -311,23 +318,13 @@ const generatorHtml = `
             // 1. Adiciona o Brazuca Customizado (Nosso Proxy)
             config.upstreams.push({ u: myMirrorUrl });
             
-            // 2. Adiciona o Torrentio PT
-            if (document.getElementById('use_torrentio').checked) {
-                config.upstreams.push({ u: TORRENTIO_PT_URL });
-            }
-            
-            // 3. Adiciona EZTV
-            if (document.getElementById('use_eztv').checked) {
-                config.upstreams.push({ u: EZTV_MANIFEST_URL });
-            }
-
-            // 4. Adiciona TPB
-            if (document.getElementById('use_tpb').checked) {
-                config.upstreams.push({ u: TPB_MANIFEST_URL });
-            }
+            // 2. Add-ons Extras
+            if (useTorrentio) config.upstreams.push({ u: TORRENTIO_PT_URL });
+            if (useEztv) config.upstreams.push({ u: EZTV_MANIFEST_URL });
+            if (useTpb) config.upstreams.push({ u: TPB_MANIFEST_URL });
 
 
-            // 5. Debrids (Tokens)
+            // 3. Debrids (Tokens)
             if (document.getElementById('use_rd').checked) {
                 config.stores.push({ c: "rd", t: document.getElementById('rd_key').value.trim() });
             }
@@ -339,7 +336,7 @@ const generatorHtml = `
             
             const hostClean = host.replace(/^https?:\\/\\//, '');
             const httpsUrl = \`\${host}/stremio/wrap/\${b64}/manifest.json\`;
-            const stremioUrl = \`stremio://\${hostClean}/stremio/wrap/\${b64}/manifest.json\`;
+            const stremioUrl = \`stremio://\${hostClean}/stremio/wrap/\${b64}/manifest.html\`; // Deve ser .html para evitar bloqueio CORS
 
             document.getElementById('finalUrl').value = httpsUrl;
             document.getElementById('installBtn').href = stremioUrl;
