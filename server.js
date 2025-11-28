@@ -153,8 +153,10 @@ const generatorHtml = `
             <h1 class="text-3xl font-extrabold text-white tracking-tight">Brazuca <span class="text-blue-500">Wrapper</span></h1>
             <p class="text-gray-500 text-xs mt-1 uppercase tracking-widest">GERADOR STREMTHRU V${PROJECT_VERSION}</p>
         </div>
-        <!-- Formulário completo (mantido do seu original) -->
-        <!-- ... todo o conteúdo HTML e JS que você já tinha ... -->
+        <!-- Aqui entra todo o formulário original que você já tinha -->
+        <!-- Inputs de Nome, Logo, checkboxes de Torrentio, TorBox, Real-Debrid -->
+        <!-- Botão GERAR CONFIGURAÇÃO e área de resultado -->
+        <!-- Scripts JS para validar e gerar o link final -->
     </div>
 </body>
 </html>
