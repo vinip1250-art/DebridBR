@@ -163,7 +163,7 @@ const generatorHtml = `
                     </label>
                 </div>
                 
-                 <div class="bg-[#161616] p-3 rounded border border-gray-800">
+                 <div class="bg-[#1a1a1a] p-3 rounded border border-gray-800">
                     <label class="flex items-center gap-3 cursor-pointer">
                         <input type="checkbox" id="use_torrentio" checked class="w-4 h-4 accent-red-600" onchange="validate()">
                         <span class="text-sm font-bold text-gray-300">Incluir Torrentio (PT/BR)</span>
@@ -171,11 +171,11 @@ const generatorHtml = `
                     <p class="text-[10px] text-gray-500 mt-1 ml-1">Torrentio Customizado incluso para resultados em português/BR.</p>
                 </div>
 
-                <!-- JACKETT -->
-                <div class="bg-[#161616] p-3 rounded border border-gray-800">
-                    <label class="text-xs font-bold text-gray-500 uppercase">Jackett (Trackers Privados)</label>
-                    <input type="text" id="jackett_url" placeholder="URL da Instância (https://jackett...)" class="w-full input-dark p-2 rounded text-sm mt-1 mb-2">
-                    <input type="text" id="jackett_key" placeholder="API Key" class="w-full input-dark p-2 rounded text-sm mt-1">
+                <!-- JACKETTIO (NOVA ENTRADA) -->
+                <div class="bg-[#1a1a1a] p-3 rounded border border-gray-800">
+                    <label class="text-xs font-bold text-gray-500 uppercase">Jackettio (Manifest URL)</label>
+                    <input type="text" id="jackettio_manifest_url" placeholder="URL do Manifesto (https://jackettio.../manifest.json)" class="w-full input-dark p-2 rounded text-sm mt-1">
+                    <p class="text-[10px] text-gray-500 mt-1 ml-1">Insira a URL completa do manifesto gerado pelo seu Jackettio.</p>
                 </div>
             </div>
 
@@ -272,7 +272,7 @@ const generatorHtml = `
             
             const isValid = (rd && rdInput.value.trim().length > 5) || 
                             (tb && tbInput.value.trim().length > 5) || 
-                            (document.getElementById('jackett_url').value.trim() && document.getElementById('jackett_key').value.trim()); // Valida se há Jackett sem Debrid
+                            (document.getElementById('jackettio_manifest_url').value.trim().startsWith('http')); // Valida se há Jackettio configurado
                             
             if(isValid) {
                 btn.classList.replace('bg-gray-800', 'btn-action');
@@ -289,8 +289,7 @@ const generatorHtml = `
 
         document.getElementById('rd_key').addEventListener('input', validate);
         document.getElementById('tb_key').addEventListener('input', validate);
-        document.getElementById('jackett_url').addEventListener('input', validate);
-        document.getElementById('jackett_key').addEventListener('input', validate);
+        document.getElementById('jackettio_manifest_url').addEventListener('input', validate);
 
         function generate() {
             let host = STREMTHRU_HOST;
@@ -300,8 +299,7 @@ const generatorHtml = `
             const cName = document.getElementById('custom_name').value.trim();
             const cLogo = document.getElementById('custom_logo').value.trim();
             const useTorrentio = document.getElementById('use_torrentio').checked;
-            const jackettUrl = document.getElementById('jackett_url').value.trim();
-            const jackettKey = document.getElementById('jackett_key').value.trim();
+            const jackettioManifestUrl = document.getElementById('jackettio_manifest_url').value.trim();
 
             const finalName = cName || "Brazuca"; 
 
@@ -320,7 +318,12 @@ const generatorHtml = `
                 config.upstreams.push({ u: TORRENTIO_PT_URL });
             }
             
-            // 3. Debrids (Tokens)
+            // 3. Adiciona o Jackettio (Agora como Upstream)
+            if (jackettioManifestUrl) {
+                 config.upstreams.push({ u: jackettioManifestUrl });
+            }
+            
+            // 4. Debrids (Tokens)
             if (document.getElementById('use_rd').checked) {
                 config.stores.push({ c: "rd", t: document.getElementById('rd_key').value.trim() });
             }
@@ -328,14 +331,6 @@ const generatorHtml = `
                 config.stores.push({ c: "tb", t: document.getElementById('tb_key').value.trim() });
             }
 
-            // 4. Jackett (Store)
-            if (jackettUrl && jackettKey) {
-                 config.stores.push({ 
-                    c: "jackett", 
-                    t: jackettKey, 
-                    u: jackettUrl 
-                });
-            }
             
             const b64 = btoa(JSON.stringify(config));
             
