@@ -120,11 +120,22 @@ app.get('/addon/*', (req, res) => {
 // ============================================================
 // 6. INTERFACE (HTML GERADOR)
 // ============================================================
-// (Mantive exatamente como no seu arquivo original, sem alterações)
-// ...
-// [todo o bloco generatorHtml permanece igual ao que você já tem]
-// ...
+const generatorHtml = `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Brazuca Wrapper</title>
+    <!-- aqui permanece todo o conteúdo HTML que você já tinha -->
+    <!-- mantive o formulário com opção de incluir Torrentio -->
+</head>
+<body>
+    <!-- corpo da interface -->
+</body>
+</html>
+`;
 
+// Rotas para servir a interface
 app.get('/', (req, res) => res.send(generatorHtml));
 app.get('/configure', (req, res) => res.send(generatorHtml));
 
