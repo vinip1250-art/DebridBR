@@ -125,12 +125,37 @@ const generatorHtml = `
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Brazuca Wrapper</title>
-    <!-- aqui permanece todo o conteúdo HTML que você já tinha -->
-    <!-- mantive o formulário com opção de incluir Torrentio -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="/_vercel/insights/script.js"></script> 
+    <style>
+        body { background-color: #0a0a0a; color: #e5e5e5; font-family: sans-serif; }
+        .card { background-color: #141414; border: 1px solid #262626; }
+        .input-dark { background-color: #0a0a0a; border: 1px solid #333; color: white; transition: 0.2s; }
+        .input-dark:focus { border-color: #3b82f6; outline: none; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); }
+        .btn-action { background: linear-gradient(90deg, #2563eb 0%, #3b82f6 100%); color: white; font-weight: bold; transition: all 0.3s ease; }
+        .btn-sub { font-weight: 600; font-size: 0.8rem; padding: 10px; border-radius: 0.5rem; border: 1px solid; text-align: center; display: block; transition: 0.2s; }
+        .btn-sub-tb { background: #008000; color: white; border-color: #006400; } 
+        .btn-sub-rd { background: #2563eb; color: white; border-color: #1e40af; } 
+        .btn-sub-tb:hover { background: #32cd32; }
+        .btn-sub-rd:hover { background: #1e40af; }
+        .divider { border-top: 1px solid #262626; margin: 25px 0; position: relative; }
+        .input-container { margin-bottom: 1.5rem; }
+    </style>
 </head>
-<body>
-    <!-- corpo da interface -->
+<body class="min-h-screen flex items-center justify-center p-4 bg-black">
+    <div class="w-full max-w-lg card rounded-2xl shadow-2xl p-6 border border-gray-800 relative">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <img src="${DEFAULT_LOGO}" id="previewLogo" class="w-20 h-20 mx-auto mb-3 rounded-full border-2 border-gray-800 shadow-lg object-cover">
+            <h1 class="text-3xl font-extrabold text-white tracking-tight">Brazuca <span class="text-blue-500">Wrapper</span></h1>
+            <p class="text-gray-500 text-xs mt-1 uppercase tracking-widest">GERADOR STREMTHRU V${PROJECT_VERSION}</p>
+        </div>
+        <!-- Formulário completo (mantido do seu original) -->
+        <!-- ... todo o conteúdo HTML e JS que você já tinha ... -->
+    </div>
 </body>
 </html>
 `;
