@@ -12,7 +12,7 @@ const UPSTREAM_BASE = "https://94c8cb9f702d-brazuca-torrents.baby-beamup.club";
 const DEFAULT_NAME = "Brazuca"; 
 const DEFAULT_LOGO = "https://i.imgur.com/KVpfrAk.png";
 const PROJECT_VERSION = "1.0.0"; 
-const STREMTHRU_HOST = "https://stremthrufortheweebs.midnightignite.me"; 
+const STREMTHRU_HOST = "https://stremthru-btie.onrender.com"; 
 
 const REFERRAL_RD = "6684575";
 const REFERRAL_TB = "b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96";
