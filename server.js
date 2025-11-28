@@ -170,6 +170,13 @@ const generatorHtml = `
                     </label>
                     <p class="text-[10px] text-gray-500 mt-1 ml-1">Torrentio Customizado incluso para resultados em português/BR.</p>
                 </div>
+
+                <!-- JACKETT -->
+                <div class="bg-[#161616] p-3 rounded border border-gray-800">
+                    <label class="text-xs font-bold text-gray-500 uppercase">Jackett (Trackers Privados)</label>
+                    <input type="text" id="jackett_url" placeholder="URL da Instância (https://jackett...)" class="w-full input-dark p-2 rounded text-sm mt-1 mb-2">
+                    <input type="text" id="jackett_key" placeholder="API Key" class="w-full input-dark p-2 rounded text-sm mt-1">
+                </div>
             </div>
 
             <!-- 3. Debrids (Tokens) -->
@@ -263,8 +270,10 @@ const generatorHtml = `
             if(!rd) rdInput.value = '';
             if(!tb) tbInput.value = '';
             
-            const isValid = (rd && rdInput.value.trim().length > 5) || (tb && tbInput.value.trim().length > 5);
-
+            const isValid = (rd && rdInput.value.trim().length > 5) || 
+                            (tb && tbInput.value.trim().length > 5) || 
+                            (document.getElementById('jackett_url').value.trim() && document.getElementById('jackett_key').value.trim()); // Valida se há Jackett sem Debrid
+                            
             if(isValid) {
                 btn.classList.replace('bg-gray-800', 'btn-action');
                 btn.classList.replace('text-gray-500', 'text-white');
@@ -280,6 +289,8 @@ const generatorHtml = `
 
         document.getElementById('rd_key').addEventListener('input', validate);
         document.getElementById('tb_key').addEventListener('input', validate);
+        document.getElementById('jackett_url').addEventListener('input', validate);
+        document.getElementById('jackett_key').addEventListener('input', validate);
 
         function generate() {
             let host = STREMTHRU_HOST;
@@ -289,7 +300,9 @@ const generatorHtml = `
             const cName = document.getElementById('custom_name').value.trim();
             const cLogo = document.getElementById('custom_logo').value.trim();
             const useTorrentio = document.getElementById('use_torrentio').checked;
-            
+            const jackettUrl = document.getElementById('jackett_url').value.trim();
+            const jackettKey = document.getElementById('jackett_key').value.trim();
+
             const finalName = cName || "Brazuca"; 
 
             let proxyParams = \`?name=\${encodeURIComponent(finalName)}\`;
@@ -315,6 +328,15 @@ const generatorHtml = `
                 config.stores.push({ c: "tb", t: document.getElementById('tb_key').value.trim() });
             }
 
+            // 4. Jackett (Store)
+            if (jackettUrl && jackettKey) {
+                 config.stores.push({ 
+                    c: "jackett", 
+                    t: jackettKey, 
+                    u: jackettUrl 
+                });
+            }
+            
             const b64 = btoa(JSON.stringify(config));
             
             const hostClean = host.replace(/^https?:\\/\\//, '');
@@ -351,10 +373,7 @@ const generatorHtml = `
 </html>
 `;
 
-app.get('/', (req, res) => res.send(generatorHtml));
-app.get('/configure', (req, res) => res.send(generatorHtml));
-
-// Rota do Manifesto (Proxy)
+// Rotas de Manifesto e Redirecionamento (Restante do server.js)
 app.get('/addon/manifest.json', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'application/json');
@@ -375,6 +394,8 @@ app.get('/addon/manifest.json', async (req, res) => {
         manifest.logo = customLogo;
         manifest.version = PROJECT_VERSION; 
         
+        delete manifest.background; 
+        
         res.json(manifest);
     } catch (error) {
         console.error("Upstream manifesto error:", error.message);
@@ -382,7 +403,6 @@ app.get('/addon/manifest.json', async (req, res) => {
     }
 });
 
-// Rotas de Redirecionamento (Streams/Catálogos)
 app.get('/addon/stream/:type/:id.json', async (req, res) => {
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -400,12 +420,16 @@ app.get('/addon/stream/:type/:id.json', async (req, res) => {
     }
 });
 
-// Redireciona todos os outros recursos (catálogos, meta, etc.)
 app.get('/addon/*', (req, res) => {
     const originalPath = req.url.replace('/addon', '');
     const upstreamUrl = `${UPSTREAM_BASE}${originalPath}`;
     res.redirect(307, upstreamUrl);
 });
+
+
+// Rotas de Geração/Interface
+app.get('/', (req, res) => res.send(generatorHtml));
+app.get('/configure', (req, res) => res.send(generatorHtml));
 
 
 // Exporta a aplicação para o Vercel Serverless
