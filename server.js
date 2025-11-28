@@ -146,34 +146,32 @@ const generatorHtml = `
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4 bg-black">
+
     <div class="w-full max-w-lg card rounded-2xl shadow-2xl p-6 border border-gray-800 relative">
+        
         <!-- Header -->
         <div class="text-center mb-8">
             <img src="${DEFAULT_LOGO}" id="previewLogo" class="w-20 h-20 mx-auto mb-3 rounded-full border-2 border-gray-800 shadow-lg object-cover">
             <h1 class="text-3xl font-extrabold text-white tracking-tight">Brazuca <span class="text-blue-500">Wrapper</span></h1>
             <p class="text-gray-500 text-xs mt-1 uppercase tracking-widest">GERADOR STREMTHRU V${PROJECT_VERSION}</p>
         </div>
-        <!-- Aqui entra todo o formulário original que você já tinha -->
-        <!-- Inputs de Nome, Logo, checkboxes de Torrentio, TorBox, Real-Debrid -->
-        <!-- Botão GERAR CONFIGURAÇÃO e área de resultado -->
-        <!-- Scripts JS para validar e gerar o link final -->
-    </div>
-</body>
-</html>
-`;
 
-// Rotas para servir a interface
-app.get('/', (req, res) => res.send(generatorHtml));
-app.get('/configure', (req, res) => res.send(generatorHtml));
+        <form class="space-y-6">
+            <!-- Personalização -->
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-[10px] font-bold text-gray-500 uppercase">Nome do Addon</label>
+                    <input type="text" id="custom_name" value="${DEFAULT_NAME}" class="w-full input-dark p-2 rounded text-sm mt-1">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-gray-500 uppercase">Ícone (URL)</label>
+                    <input type="text" id="custom_logo" value="${DEFAULT_LOGO}" class="w-full input-dark p-2 rounded text-sm mt-1" onchange="updatePreview()">
+                </div>
+            </div>
 
-// ============================================================
-// 7. EXPORTAÇÃO / SERVER
-// ============================================================
-const PORT = process.env.PORT || 7000;
-if (process.env.VERCEL) {
-    module.exports = app;
-} else {
-    app.listen(PORT, () => {
-        console.log(`Gerador rodando na porta ${PORT}`);
-    });
-}
+            <!-- Fontes Extras -->
+            <div class="divider"></div>
+            <div class="space-y-3">
+                <label class="text-xs font-bold text-gray-500 uppercase ml-1">2. Fontes de Torrent</label>
+                
+                <div class="bg-[#
