@@ -116,7 +116,6 @@ const generatorHtml = `
         
         .divider { border-top: 1px solid #262626; margin: 25px 0; position: relative; }
         .input-container { margin-bottom: 1.5rem; }
-        .textarea-small { font-family: monospace; font-size: 10px; }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4 bg-black">
@@ -171,17 +170,8 @@ const generatorHtml = `
                     <p class="text-[10px] text-gray-500 mt-1 ml-1">Torrentio Customizado incluso para resultados em português/BR.</p>
                 </div>
             </div>
-            
-            <!-- 3. Formatação Customizada -->
-            <div class="divider"></div>
-            <div>
-                <label class="text-xs font-bold text-gray-500 uppercase ml-1 block mb-2">3. Formatação Customizada (Opcional)</label>
-                
-                <textarea id="custom_format_string" placeholder='Cole a string JSON de formatação (ex: {"name": "{stream.resolution::=2160p[...]})' class="w-full input-dark p-2 rounded textarea-small h-24 resize-none"></textarea>
-                <p class="text-[10px] text-gray-600">Atenção: A formatação é feita pelo StremThru/Torrentio, não pelo nosso servidor. Cole a string JSON válida para ser injetada.</p>
-            </div>
 
-            <!-- 4. Debrids (Tokens) -->
+            <!-- 3. Debrids (Tokens) -->
             <div class="divider"></div>
             
             <div class="space-y-6">
@@ -232,6 +222,7 @@ const generatorHtml = `
     <script>
         const STREMTHRU_HOST = "${STREMTHRU_HOST}";
         const TORRENTIO_PT_URL = "${TORRENTIO_PT_URL}";
+        const DEFAULT_LOGO_URL = "${DEFAULT_LOGO}";
 
         function updatePreview() {
             const url = document.getElementById('custom_logo').value.trim();
@@ -274,7 +265,6 @@ const generatorHtml = `
             const cName = document.getElementById('custom_name').value.trim();
             const cLogo = document.getElementById('custom_logo').value.trim();
             const useTorrentio = document.getElementById('use_torrentio').checked;
-            const formatString = document.getElementById('custom_format_string').value.trim();
             
             const finalName = cName || "BR"; 
 
@@ -294,22 +284,7 @@ const generatorHtml = `
                 config.upstreams.push({ u: torrentioCleanUrl });
             }
             
-            // 3. Formatação Customizada (Se existir)
-            if (formatString) {
-                try {
-                    const encodedFormat = encodeURIComponent(formatString);
-                    config.upstreams.forEach(upstream => {
-                        // Aplica a formatação em TODAS as fontes
-                        upstream.u = \`\${upstream.u}&format=\${encodedFormat}\`;
-                    });
-                } catch(e) {
-                    alert("A string de formatação customizada é inválida.");
-                    return;
-                }
-            }
-
-
-            // 4. Debrids (Tokens)
+            // 3. Debrids (Tokens)
             if (document.getElementById('use_tb').checked) {
                 config.stores.push({ c: "tb", t: document.getElementById('tb_key').value.trim() });
             }
