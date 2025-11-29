@@ -20,205 +20,72 @@ const REFERRAL_TB = "b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96";
 // CORREÇÃO: Constante definida no escopo global
 const TORRENTIO_PT_URL = "https://torrentio.strem.fun/providers=nyaasi,tokyotosho,anidex,comando,bludv,micoleaodublado|language=portuguese/manifest.json";
 
-// Headers globais para evitar bloqueios simples
-const AXIOS_CONFIG = {
-    headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+// ============================================================
+// 2. ROTA MANIFESTO (Proxy)
+// ============================================================
+app.get('/addon/manifest.json', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'public, max-age=60'); 
+    
+    try {
+        const customName = req.query.name || DEFAULT_NAME;
+        const customLogo = req.query.logo || DEFAULT_LOGO;
+        
+        const response = await axios.get(`${UPSTREAM_BASE}/manifest.json`);
+        const manifest = response.data;
+
+        const idSuffix = Buffer.from(customName).toString('hex').substring(0, 10);
+        
+        manifest.id = `community.brazuca.wrapper.${idSuffix}`;
+        manifest.name = customName; 
+        manifest.description = `Wrapper customizado: ${customName}`;
+        manifest.logo = customLogo;
+        manifest.version = PROJECT_VERSION; 
+        
+        delete manifest.background; 
+        
+        res.json(manifest);
+    } catch (error) {
+        console.error("Upstream manifesto error:", error.message);
+        res.status(500).json({ error: "Upstream manifesto error" });
     }
-};
+});
 
 // ============================================================
-// 2. FUNÇÕES DE DEBRID
+// 3. ROTA REDIRECIONADORA (FIX 404)
 // ============================================================
 
-// --- REAL-DEBRID ---
-async function resolveRealDebrid(infoHash, apiKey) {
-    try {
-        const magnet = `magnet:?xt=urn:btih:${infoHash}&tr=udp://tracker.opentrackr.org:1337/announce`;
+// Captura TODAS as rotas /addon/*
+app.get('/addon/*', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    
+    const originalPath = req.url.replace('/addon', '');
+    const upstreamUrl = `${UPSTREAM_BASE}${originalPath}`;
+    
+    // 1. Lógica de Streams
+    if (originalPath.startsWith('/stream/')) {
+        res.setHeader('Content-Type', 'application/json');
         
-        const addUrl = 'https://api.real-debrid.com/rest/1.0/torrents/addMagnet';
-        const addResp = await axios.post(addUrl, `magnet=${encodeURIComponent(magnet)}`, {
-            headers: { 'Authorization': `Bearer ${apiKey}` }
-        });
-        const torrentId = addResp.data.id;
+        try {
+            const response = await axios.get(upstreamUrl);
+            let streams = response.data.streams || [];
 
-        const infoUrl = `https://api.real-debrid.com/rest/1.0/torrents/info/${torrentId}`;
-        let attempts = 0;
-        // Polling de seleção (RD demora para processar magnet)
-        while (attempts < 10) {
-            const infoResp = await axios.get(infoUrl, { headers: { 'Authorization': `Bearer ${apiKey}` } });
-            if (infoResp.data.status === 'waiting_files_selection') {
-                await axios.post(`https://api.real-debrid.com/rest/1.0/torrents/selectFiles/${torrentId}`, `files=all`, {
-                    headers: { 'Authorization': `Bearer ${apiKey}` }
-                });
-                break;
-            }
-            if (infoResp.data.status === 'downloaded') break;
-            await new Promise(r => setTimeout(r, 500));
-            attempts++;
-        }
+            return res.json({ streams: streams });
 
-        const finalInfo = await axios.get(infoUrl, { headers: { 'Authorization': `Bearer ${apiKey}` } });
-        if (finalInfo.data.links && finalInfo.data.links.length > 0) {
-            const unrestrictResp = await axios.post('https://api.real-debrid.com/rest/1.0/unrestrict/link', `link=${finalInfo.data.links[0]}`, {
-                headers: { 'Authorization': `Bearer ${apiKey}` }
-            });
-            return { url: unrestrictResp.data.download, error: null };
+        } catch (error) {
+            console.error("Stream Fetch Error:", error.message);
+            return res.status(404).json({ streams: [] }); 
         }
-        return { url: null, error: "Aguardando download no RD..." };
-    } catch (e) { 
-        return { url: null, error: e.response?.data?.error || e.message };
     }
-}
+    
+    // 2. Lógica de Redirecionamento (Catálogos, Meta, etc.)
+    res.redirect(307, upstreamUrl);
+});
 
-async function checkRealDebridCache(hashes, apiKey) {
-    if (!hashes.length) return {};
-    const validHashes = hashes.slice(0, 50);
-    try {
-        const url = `https://api.real-debrid.com/rest/1.0/torrents/instantAvailability/${validHashes.join('/')}`;
-        const resp = await axios.get(url, { headers: { 'Authorization': `Bearer ${apiKey}` } });
-        const results = {};
-        
-        const mapLower = {};
-        Object.keys(resp.data).forEach(k => mapLower[k.toLowerCase()] = resp.data[k]);
-
-        validHashes.forEach(h => {
-            const data = mapLower[h.toLowerCase()];
-            if (data && data.rd && Array.isArray(data.rd) && data.rd.length > 0) {
-                results[h] = true;
-            } else {
-                results[h] = false;
-            }
-        });
-        return results;
-    } catch (e) { return {}; }
-}
-
-// --- TORBOX (CORRIGIDO PARA ENDPOINTS ESTÁVEIS) ---
-
-async function resolveTorBox(infoHash, apiKey) {
-    try {
-        const magnet = `magnet:?xt=urn:btih:${infoHash}`;
-
-        // === 1) Criar torrent (Usando o endpoint /api/torrents/create que é mais estável) ===
-        const params = new URLSearchParams();
-        params.append('magnet', magnet);
-        params.append('seed', '1');
-        params.append('allow_zip', 'false');
-
-        const createResp = await axios.post(
-            'https://api.torbox.app/v1/api/torrents/create', // <-- Endpoint estável
-            params,
-            {
-                headers: {
-                    'Authorization': `Bearer ${apiKey}`,
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'User-Agent': AXIOS_CONFIG.headers['User-Agent']
-                }
-            }
-        );
-        
-        if (axios.isAxiosError(createResp) && createResp.response.status !== 200) {
-             const statusCode = createResp.response.status;
-             const apiError = createResp.response.data?.detail || createResp.response.data?.error || `Status ${statusCode}`;
-             return { url: null, error: `TorBox (Criação): Chave ou URL inválida. ${apiError}` };
-        }
-        
-        if (!createResp.data?.success)
-            return { url: null, error: "TorBox: criação falhou. Sem sucesso." };
-
-        const torrentId = createResp.data.data.torrent_id;
-
-        // === 2) Esperar arquivos ficarem disponíveis (Polling) ===
-        let file = null;
-
-        for (let i = 0; i < 10; i++) {
-            await new Promise(r => setTimeout(r, 2000)); // Espera 2 segundos (Total 20s)
-            
-            const listResp = await axios.get(
-                `https://api.torbox.app/v1/api/torrents/mylist?id=${torrentId}`, // <-- Endpoint estável
-                {
-                    headers: {
-                        'Authorization': `Bearer ${apiKey}`,
-                        'User-Agent': AXIOS_CONFIG.headers['User-Agent']
-                    }
-                }
-            );
-
-            if (listResp.data.data?.files?.length > 0) {
-                const files = listResp.data.data.files;
-                // Pega o maior arquivo (vídeo principal)
-                file = files.reduce((a, b) => a.size > b.size ? a : b); 
-                break;
-            }
-        }
-
-        if (!file)
-            return { url: null, error: "TorBox: timeout (20s) ao ler arquivos. Tente novamente." };
-
-        // === 3) Gerar link de download (Endpoint estável) ===
-        const dlResp = await axios.get(
-            `https://api.torbox.app/v1/api/torrents/requestdl?token=${apiKey}&torrent_id=${torrentId}&file_id=${file.id}&zip_link=false`, 
-            {
-                headers: {
-                    'Authorization': `Bearer ${apiKey}`,
-                    'User-Agent': AXIOS_CONFIG.headers['User-Agent']
-                }
-            }
-        );
-
-        if (!dlResp.data?.success)
-            return { url: null, error: "TorBox: falha ao gerar URL. " + (dlResp.data.detail || dlResp.data.error || dlResp.data.message) };
-
-        return { url: dlResp.data.data, error: null };
-
-    } catch (e) {
-        // Captura o erro da API (401, 404, etc.)
-        const customMessage = axios.isAxiosError(e) 
-            ? `Erro API: ${e.response?.status} - ${e.response?.data?.detail || e.response?.data?.error || e.message}`
-            : e.message;
-            
-        console.error("TorBox Fatal:", customMessage);
-        return { url: null, error: customMessage };
-    }
-}
-
-async function checkTorBoxCache(hashes, apiKey) {
-    if (!hashes.length) return {};
-    const validHashes = hashes.slice(0, 40);
-
-    try {
-        // URL de checagem de cache estável
-        const url = `https://api.torbox.app/v1/api/torrents/checkcached?hash=${validHashes.join(',')}&format=list&list_files=false`; 
-
-        const resp = await axios.get(url, {
-            headers: {
-                'Authorization': `Bearer ${apiKey}`,
-                'User-Agent': AXIOS_CONFIG.headers['User-Agent']
-            }
-        });
-
-        const result = {};
-        validHashes.forEach(h => result[h.toLowerCase()] = false);
-
-        if (resp.data?.data) {
-            // A resposta pode ser um array ou um objeto, tratamos os dois.
-            const data = resp.data.data;
-            if (Array.isArray(data)) {
-                data.forEach(h => { if(h) result[h.toLowerCase()] = true; });
-            } else if (typeof data === 'object') {
-                Object.keys(data).forEach(k => { if(data[k]) result[k.toLowerCase()] = true; });
-            }
-        }
-
-        return result;
-    } catch (e) {
-        return {};
-    }
-}
 
 // ============================================================
-// 3. HTML CONFIG
+// 4. INTERFACE
 // ============================================================
 const generatorHtml = `
 <!DOCTYPE html>
@@ -296,19 +163,12 @@ const generatorHtml = `
                     </label>
                 </div>
                 
-                 <div class="bg-[#1a1a1a] p-3 rounded border border-gray-800">
+                 <div class="bg-[#161616] p-3 rounded border border-gray-800">
                     <label class="flex items-center gap-3 cursor-pointer">
                         <input type="checkbox" id="use_torrentio" checked class="w-4 h-4 accent-red-600" onchange="validate()">
                         <span class="text-sm font-bold text-gray-300">Incluir Torrentio (PT/BR)</span>
                     </label>
                     <p class="text-[10px] text-gray-500 mt-1 ml-1">Torrentio Customizado incluso para resultados em português/BR.</p>
-                </div>
-
-                <!-- JACKETTIO (NOVA ENTRADA) -->
-                <div class="bg-[#1a1a1a] p-3 rounded border border-gray-800">
-                    <label class="text-xs font-bold text-gray-500 uppercase">Jackettio (Manifest URL)</label>
-                    <input type="text" id="jackettio_manifest_url" placeholder="URL do Manifesto (https://jackettio.../manifest.json)" class="w-full input-dark p-2 rounded text-sm mt-1">
-                    <p class="text-[10px] text-gray-500 mt-1 ml-1">Insira a URL completa do manifesto gerado pelo seu Jackettio.</p>
                 </div>
             </div>
 
@@ -403,10 +263,8 @@ const generatorHtml = `
             if(!rd) rdInput.value = '';
             if(!tb) tbInput.value = '';
             
-            const isValid = (rd && rdInput.value.trim().length > 5) || 
-                            (tb && tbInput.value.trim().length > 5) || 
-                            (document.getElementById('jackettio_manifest_url').value.trim().startsWith('http'));
-                            
+            const isValid = (rd && rdInput.value.trim().length > 5) || (tb && tbInput.value.trim().length > 5);
+
             if(isValid) {
                 btn.classList.replace('bg-gray-800', 'btn-action');
                 btn.classList.replace('text-gray-500', 'text-white');
@@ -422,7 +280,6 @@ const generatorHtml = `
 
         document.getElementById('rd_key').addEventListener('input', validate);
         document.getElementById('tb_key').addEventListener('input', validate);
-        document.getElementById('jackettio_manifest_url').addEventListener('input', validate);
 
         function generate() {
             let host = STREMTHRU_HOST;
@@ -432,8 +289,7 @@ const generatorHtml = `
             const cName = document.getElementById('custom_name').value.trim();
             const cLogo = document.getElementById('custom_logo').value.trim();
             const useTorrentio = document.getElementById('use_torrentio').checked;
-            const jackettioManifestUrl = document.getElementById('jackettio_manifest_url').value.trim();
-
+            
             const finalName = cName || "Brazuca"; 
 
             let proxyParams = \`?name=\${encodeURIComponent(finalName)}\`;
@@ -451,12 +307,7 @@ const generatorHtml = `
                 config.upstreams.push({ u: TORRENTIO_PT_URL });
             }
             
-            // 3. Adiciona o Jackettio (Agora como Upstream)
-            if (jackettioManifestUrl) {
-                 config.upstreams.push({ u: jackettioManifestUrl });
-            }
-            
-            // 4. Debrids (Tokens)
+            // 3. Debrids (Tokens)
             if (document.getElementById('use_rd').checked) {
                 config.stores.push({ c: "rd", t: document.getElementById('rd_key').value.trim() });
             }
@@ -464,7 +315,6 @@ const generatorHtml = `
                 config.stores.push({ c: "tb", t: document.getElementById('tb_key').value.trim() });
             }
 
-            
             const b64 = btoa(JSON.stringify(config));
             
             const hostClean = host.replace(/^https?:\\/\\//, '');
@@ -501,7 +351,10 @@ const generatorHtml = `
 </html>
 `;
 
-// Rotas de Manifesto e Redirecionamento (Restante do server.js)
+app.get('/', (req, res) => res.send(generatorHtml));
+app.get('/configure', (req, res) => res.send(generatorHtml));
+
+// Rota do Manifesto (Proxy)
 app.get('/addon/manifest.json', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'application/json');
@@ -522,8 +375,6 @@ app.get('/addon/manifest.json', async (req, res) => {
         manifest.logo = customLogo;
         manifest.version = PROJECT_VERSION; 
         
-        delete manifest.background; 
-        
         res.json(manifest);
     } catch (error) {
         console.error("Upstream manifesto error:", error.message);
@@ -531,6 +382,7 @@ app.get('/addon/manifest.json', async (req, res) => {
     }
 });
 
+// Rotas de Redirecionamento (Streams/Catálogos)
 app.get('/addon/stream/:type/:id.json', async (req, res) => {
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -548,16 +400,12 @@ app.get('/addon/stream/:type/:id.json', async (req, res) => {
     }
 });
 
+// Redireciona todos os outros recursos (catálogos, meta, etc.)
 app.get('/addon/*', (req, res) => {
     const originalPath = req.url.replace('/addon', '');
     const upstreamUrl = `${UPSTREAM_BASE}${originalPath}`;
     res.redirect(307, upstreamUrl);
 });
-
-
-// Rotas de Geração/Interface
-app.get('/', (req, res) => res.send(generatorHtml));
-app.get('/configure', (req, res) => res.send(generatorHtml));
 
 
 // Exporta a aplicação para o Vercel Serverless
@@ -569,4 +417,3 @@ if (process.env.VERCEL) {
         console.log(`Gerador rodando na porta ${PORT}`);
     });
 }
-
