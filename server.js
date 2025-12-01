@@ -221,7 +221,7 @@ app.get('/addon/*', async (req, res) => {
 
 
 // ============================================================
-// 6. INTERFACE
+// 6. INTERFACE DO GERADOR HTML
 // ============================================================
 const generatorHtml = `
 <!DOCTYPE html>
@@ -373,7 +373,7 @@ const generatorHtml = `
                 <div class="divider"></div>
                 <div class="bg-[#111] p-3 rounded border border-gray-800 text-center">
                     <p class="text-xs text-gray-400 mb-2">Alternativa (Addon Separado):</p>
-                    <a id="downloadAioConfig" href="#" class="block w-full bg-purple-900 hover:bg-purple-800 text-white py-3 rounded-lg font-bold text-xs uppercase tracking-wide mb-2" onclick="downloadConfig(event)">
+                    <a id="downloadAioConfig" href="#" class="block w-full bg-purple-900 hover:bg-purple-800 text-white py-3 rounded-lg font-bold text-xs uppercase tracking-wide mb-2" onclick="downloadCustomAio(event)">
                         <i class="fas fa-file-code mr-1"></i> Baixar Config AIO (Com Keys)
                     </a>
                     <a href="https://aio.atbphosting.com/stremio/configure?menu=save-install" target="_blank" class="block w-full text-[10px] text-gray-500 hover:text-gray-300 mt-2 underline">
@@ -444,6 +444,9 @@ const generatorHtml = `
         document.getElementById('use_rd').addEventListener('change', validate);
         document.getElementById('use_tb').addEventListener('change', validate);
 
+        // Variável global para armazenar a config gerada
+        let generatedAioConfig = null;
+
         function generate() {
             let host = STREMTHRU_HOST;
             host = host.replace(/\\/$/, '').replace('http:', 'https:');
@@ -485,22 +488,12 @@ const generatorHtml = `
 
             document.getElementById('finalUrl').value = httpsUrl;
             document.getElementById('installBtn').href = stremioUrl;
-
-            document.getElementById('btnGenerate').classList.add('hidden');
-            document.getElementById('resultArea').classList.remove('hidden');
-        }
-
-        // Função de download dinâmico para injetar as chaves
-        function downloadConfig(e) {
-            e.preventDefault();
             
+            // --- GERAÇÃO INTELIGENTE AIOSTREAMS (CLIENT-SIDE) ---
             const aioConfig = JSON.parse(JSON.stringify(AIO_TEMPLATE));
-            const rdKey = document.getElementById('rd_key').value.trim();
-            const tbKey = document.getElementById('tb_key').value.trim();
-            const useRd = document.getElementById('use_rd').checked;
-            const useTb = document.getElementById('use_tb').checked;
-
-            if (useRd && rdKey) {
+            
+            // Injeta Credenciais RD
+            if (document.getElementById('use_rd').checked && rdKey) {
                 const rdService = aioConfig.services.find(s => s.id === 'realdebrid');
                 if (rdService) {
                     rdService.enabled = true;
@@ -511,8 +504,9 @@ const generatorHtml = `
                     preset.options.services.push('realdebrid');
                 }
             }
-
-            if (useTb && tbKey) {
+            
+            // Injeta Credenciais TB
+            if (document.getElementById('use_tb').checked && tbKey) {
                 const tbService = aioConfig.services.find(s => s.id === 'torbox');
                 if (tbService) {
                     tbService.enabled = true;
@@ -520,13 +514,38 @@ const generatorHtml = `
                 }
             }
 
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(aioConfig, null, 2));
+            // Salva na variável global para o download usar depois
+            generatedAioConfig = aioConfig;
+            
+            // Gera Link de Instalação Direta AIO
+            const aioB64 = btoa(JSON.stringify(aioConfig));
+            const aioUrl = \`stremio://aio.atbphosting.com/\${aioB64}/manifest.json\`;
+            document.getElementById('installAioBtn').href = aioUrl;
+
+            document.getElementById('btnGenerate').classList.add('hidden');
+            document.getElementById('resultArea').classList.remove('hidden');
+        }
+
+        // Função de download corrigida para gerar Blob compatível
+        function downloadCustomAio(e) {
+            e.preventDefault();
+            if (!generatedAioConfig) {
+                alert("Por favor, clique em GERAR CONFIGURAÇÃO primeiro.");
+                return;
+            }
+            
+            // Gera o Blob com tipo 'application/json' para compatibilidade
+            const dataStr = JSON.stringify(generatedAioConfig, null, 2);
+            const blob = new Blob([dataStr], {type: "application/json"});
+            const url = URL.createObjectURL(blob);
+            
             const downloadAnchorNode = document.createElement('a');
-            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("href", url);
             downloadAnchorNode.setAttribute("download", "aiostreams-config-PT-BR.json");
             document.body.appendChild(downloadAnchorNode);
             downloadAnchorNode.click();
             downloadAnchorNode.remove();
+            URL.revokeObjectURL(url);
         }
 
         function copyLink() {
@@ -553,74 +572,7 @@ const generatorHtml = `
 `;
 
 // ============================================================
-// 7. ROTAS (ORDENADAS CORRETAMENTE)
-// ============================================================
-
-// 1. Interface (GET /)
-app.get('/', (req, res) => res.send(generatorHtml));
-app.get('/configure', (req, res) => res.send(generatorHtml));
-
-// 2. Download JSON Estático (Fallback)
-app.get('/download/aiostreams-config.json', (req, res) => {
-    res.setHeader('Content-Disposition', 'attachment; filename="aiostreams-config-PT-BR.json"');
-    res.setHeader('Content-Type', 'application/json');
-    res.send(JSON.stringify(AIO_CONFIG_JSON, null, 2));
-});
-
-// 3. Manifesto (GET /addon/manifest.json)
-app.get('/addon/manifest.json', async (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Cache-Control', 'public, max-age=60'); 
-    
-    try {
-        const customName = req.query.name || DEFAULT_NAME;
-        const customLogo = req.query.logo || DEFAULT_LOGO;
-        
-        const response = await axios.get(`${UPSTREAM_BASE}/manifest.json`);
-        const manifest = response.data;
-
-        const idSuffix = Buffer.from(customName).toString('hex').substring(0, 10);
-        
-        manifest.id = `community.brazuca.wrapper.${idSuffix}`;
-        manifest.name = customName; 
-        manifest.description = `Wrapper customizado: ${customName}`;
-        manifest.logo = customLogo;
-        manifest.version = PROJECT_VERSION; 
-        
-        delete manifest.background; 
-        
-        res.json(manifest);
-    } catch (error) {
-        console.error("Upstream manifesto error:", error.message);
-        res.status(500).json({ error: "Upstream manifesto error" });
-    }
-});
-
-// 4. Redirecionamento Catch-All (GET /addon/*)
-app.get('/addon/*', async (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    
-    const originalPath = req.url.replace('/addon', '');
-    const upstreamUrl = `${UPSTREAM_BASE}${originalPath}`;
-    
-    if (originalPath.startsWith('/stream/')) {
-        res.setHeader('Content-Type', 'application/json');
-        try {
-            const response = await axios.get(upstreamUrl);
-            let streams = response.data.streams || [];
-            return res.json({ streams: streams });
-        } catch (error) {
-            console.error("Stream Fetch Error:", error.message);
-            return res.status(404).json({ streams: [] }); 
-        }
-    }
-    res.redirect(307, upstreamUrl);
-});
-
-
-// ============================================================
-// 8. START
+// 7. EXPORTAÇÃO
 // ============================================================
 const PORT = process.env.PORT || 7000;
 if (process.env.VERCEL) {
