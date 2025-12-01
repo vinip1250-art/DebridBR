@@ -20,7 +20,7 @@ const REFERRAL_TB = "b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96";
 const TORRENTIO_PT_URL = "https://torrentio.strem.fun/providers=nyaasi,tokyotosho,anidex,comando,bludv,micoleaodublado|language=portuguese/manifest.json";
 
 // ============================================================
-// 2. AIOSTREAMS CONFIG (TEMPLATE)
+// 2. AIOSTREAMS CONFIG (TEMPLATE LIMPO - IDÊNTICO AO ARQUIVO 3)
 // ============================================================
 const AIO_CONFIG_JSON = {
   "services": [
@@ -50,7 +50,7 @@ const AIO_CONFIG_JSON = {
         "timeout": 15000,
         "resources": ["stream"],
         "mediaTypes": [],
-        "services": ["torbox"], // RD será adicionado via script se necessário
+        "services": ["torbox"], 
         "includeP2P": false,
         "useMultipleInstances": false
       }
@@ -376,8 +376,10 @@ const generatorHtml = `
                     <a id="downloadAioConfig" href="#" class="block w-full bg-purple-900 hover:bg-purple-800 text-white py-3 rounded-lg font-bold text-xs uppercase tracking-wide mb-2" onclick="downloadCustomAio(event)">
                         <i class="fas fa-file-code mr-1"></i> Baixar Config AIO (Com Keys)
                     </a>
-                    <a href="https://aio.atbphosting.com/stremio/configure?menu=save-install" target="_blank" class="block w-full text-[10px] text-gray-500 hover:text-gray-300 mt-2 underline">
-                        Abrir Configurador Online
+                    
+                    <!-- NOVO BOTÃO INSTALAR AIO -->
+                    <a id="installAioBtn" href="#" class="block w-full bg-[#1f2937] hover:bg-[#374151] text-gray-300 hover:text-white font-medium text-xs py-2.5 rounded-lg text-center transition border border-gray-700">
+                        <i class="fas fa-rocket mr-1"></i> Instalar AIOStreams Direto
                     </a>
                 </div>
             </div>
@@ -514,6 +516,20 @@ const generatorHtml = `
                 }
             }
 
+            // Injeta o Brazuca Wrapper como um novo preset 'addon'
+            // Gera um ID aleatório para evitar colisão
+            const randomId = Math.random().toString(36).substring(7);
+            
+            aioConfig.presets.push({
+                "type": "addon",
+                "instanceId": "brazuca_" + randomId,
+                "enabled": true,
+                "options": {
+                    "name": finalName + " Wrapper",
+                    "url": myMirrorUrl.replace('http://', 'https://') // AIO requer HTTPS
+                }
+            });
+
             // Salva na variável global para o download usar depois
             generatedAioConfig = aioConfig;
             
@@ -526,7 +542,7 @@ const generatorHtml = `
             document.getElementById('resultArea').classList.remove('hidden');
         }
 
-        // Função de download corrigida para gerar Blob compatível
+        // Função de download corrigida para gerar Blob compatível (UTF-8 application/json)
         function downloadCustomAio(e) {
             e.preventDefault();
             if (!generatedAioConfig) {
@@ -534,7 +550,7 @@ const generatorHtml = `
                 return;
             }
             
-            // Gera o Blob com tipo 'application/json' para compatibilidade
+            // Gera o Blob com tipo 'application/json' para compatibilidade total
             const dataStr = JSON.stringify(generatedAioConfig, null, 2);
             const blob = new Blob([dataStr], {type: "application/json"});
             const url = URL.createObjectURL(blob);
