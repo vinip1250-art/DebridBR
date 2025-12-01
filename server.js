@@ -6,7 +6,7 @@ const app = express();
 app.use(cors());
 
 // ============================================================
-// 1. CONFIGURAÇÕES GLOBAIS
+// 1. CONFIGURAÇÕES E ROTAS (NO TOPO PARA EVITAR ERROS)
 // ============================================================
 const UPSTREAM_BASE = "https://94c8cb9f702d-brazuca-torrents.baby-beamup.club";
 const DEFAULT_NAME = "Brazuca"; 
@@ -16,141 +16,196 @@ const STREMTHRU_HOST = "https://stremthru.atbphosting.com";
 
 const REFERRAL_RD = "6684575";
 const REFERRAL_TB = "b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96";
-
 const TORRENTIO_PT_URL = "https://torrentio.strem.fun/providers=nyaasi,tokyotosho,anidex,comando,bludv,micoleaodublado|language=portuguese/manifest.json";
 
-// ============================================================
-// 2. AIOSTREAMS CONFIG (BASEADO NO ARQUIVO 3 - LIMPO)
-// ============================================================
-const AIO_CONFIG_JSON = {
-  "services": [
-    { "id": "torbox", "enabled": false, "credentials": {} },
-    { "id": "realdebrid", "enabled": false, "credentials": {} },
-    { "id": "alldebrid", "enabled": false, "credentials": {} },
-    { "id": "premiumize", "enabled": false, "credentials": {} },
-    { "id": "debridlink", "enabled": false, "credentials": {} },
-    { "id": "stremio_nntp", "enabled": false, "credentials": {} },
-    { "id": "nzbdav", "enabled": false, "credentials": {} },
-    { "id": "altmount", "enabled": false, "credentials": {} },
-    { "id": "offcloud", "enabled": false, "credentials": {} },
-    { "id": "putio", "enabled": false, "credentials": {} },
-    { "id": "easynews", "enabled": false, "credentials": {} },
-    { "id": "easydebrid", "enabled": false, "credentials": {} },
-    { "id": "debrider", "enabled": false, "credentials": {} },
-    { "id": "pikpak", "enabled": false, "credentials": {} },
-    { "id": "seedr", "enabled": false, "credentials": {} }
-  ],
-  "presets": [
-    {
-      "type": "stremthruTorz",
-      "instanceId": "52c",
-      "enabled": true,
-      "options": {
-        "name": "StremThru Torz",
-        "timeout": 15000,
-        "resources": ["stream"],
-        "mediaTypes": [],
-        "services": ["torbox"], // MANTIDO ORIGINAL PARA EVITAR ERRO
-        "includeP2P": false,
-        "useMultipleInstances": false
-      }
-    },
-    {
-      "type": "torbox-search",
-      "instanceId": "f7a",
-      "enabled": true,
-      "options": {
-        "name": "TorBox Search",
-        "timeout": 15000,
-        "sources": ["torrent"],
-        "services": ["torbox"],
-        "mediaTypes": [],
-        "userSearchEngines": false,
-        "onlyShowUserSearchResults": false,
-        "useMultipleInstances": false
-      }
-    },
-    {
-      "type": "bitmagnet",
-      "instanceId": "437",
-      "enabled": true,
-      "options": {
-        "name": "Bitmagnet",
-        "timeout": 15000,
-        "mediaTypes": [],
-        "services": ["torbox"],
-        "useMultipleInstances": false,
-        "paginate": false
-      }
-    },
-    {
-      "type": "tmdb-addon",
-      "instanceId": "6d5",
-      "enabled": true,
-      "options": {
-        "name": "The Movie Database",
-        "timeout": 15000,
-        "resources": ["catalog", "meta"],
-        "url": "https://tmdb.elfhosted.com/N4IgTgDgJgRg1gUwJ4gFwgC4AYC0AzMBBHSWEAGhAjAHsA3ASygQEkBbWFqNTMAVwQVwCDHzAA7dp27oM-QZQA2AQ3EBzPsrWD0EDDgBCAJSEBnOQmVsG6tAG0Q4vAA8hACxhshUcRCFW-SgBjfiEINkCQZQxItRo-AF1g6OVFGjVTe1AmHgwOGAA6DHihDCQIHRA2egYFRytKgAV4vhUwMzcaAHcWcQAJGjYdOQEAX3JsmUx8opLKMoqeUwQwWszKcQaeZohW5XbKU06e-sHh+XHJ3JmLcSgbNVLyyurGOs2hngAVQjuHju6vQGn1QIwQlxAOVkN1+91s82eSxWayEH0qPwQf3hICOgNOILBEKhOIsVgeBScrgRi3Qr1qqK26AAciI8IoGFScccgWc0ISJpCpuZCGT1BSXE8aTjkQh1vUQSAWRg2RyASdgecxgLicLLNYxR4vNSXjV3oyQH0DAB5AAEAFllJzcereaCLtqhaT9WoCobJZVlqtZQyFZbbQ6ndz8ZrwR6ll7yT5IgsTW8Q5UACIMUziZAAajVPIJ7qu6F1op9Sf9SKDcrRPCzOfzhejfJLgvjIu9BQC1dppvT21WQxtADUmAgaC2NW2taWSV3yb3jTWURtzY1hwgxxOp4cozO3XOO2WE2LwsnEf20+uFY19lYaHxxBgC-u8Yf+fPy92L33pbWg7oPeYCPs+r7Tq6X4nguepLjE-50maCoAIIQBAijbl8o5vlyH5Qe2Opnj60SXlKgZrvKlRoRhWE4ZBxbHkRi5inEZGpvSt6VAA4mkMDxCoKDvi6jGxt+xEFCEfCIQOXE8AAwvw4hBG4SC0IoigMTGRKeixPpsf+FHBnJ6C8TQ-EYcoQl4SJ2lxqeemSaEK5ljKdbmopz4qWpNAaVps7gkkUTaEY0T-OgJjJOY8lPi+aAAKzCShIVheovTcZihCZLI8hCJiygwJhyUIKFGDhSAeCpMsarFaVDwAOoMBgbhSDAdW2OglWKNVoxAA/manifest.json",
-        "Enable Adult Content": false,
-        "hideEpisodeThumbnails": false,
-        "provideImdbId": true,
-        "ageRating": "R",
-        "language": "pt-BR"
-      }
-    },
-    {
-      "type": "anime-kitsu",
-      "instanceId": "3ac",
-      "enabled": true,
-      "options": {
-        "name": "Anime Kitsu",
-        "timeout": 15000,
-        "resources": ["catalog", "meta"]
-      }
+// --- ROTA 1: INTERFACE (HOME) ---
+app.get('/', (req, res) => res.send(getGeneratorHtml()));
+app.get('/configure', (req, res) => res.send(getGeneratorHtml()));
+
+// --- ROTA 2: DOWNLOAD CONFIG AIOSTREAMS ---
+app.get('/download/aiostreams-config.json', (req, res) => {
+    res.setHeader('Content-Disposition', 'attachment; filename="aiostreams-config-PT-BR.json"');
+    res.setHeader('Content-Type', 'application/json');
+    res.send(JSON.stringify(getAioConfig(), null, 2));
+});
+
+// --- ROTA 3: MANIFESTO (PROXY) ---
+app.get('/addon/manifest.json', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'application/json');
+    
+    try {
+        const customName = req.query.name || DEFAULT_NAME;
+        const customLogo = req.query.logo || DEFAULT_LOGO;
+        const response = await axios.get(`${UPSTREAM_BASE}/manifest.json`);
+        const manifest = response.data;
+        const idSuffix = Buffer.from(customName).toString('hex').substring(0, 10);
+        
+        manifest.id = `community.brazuca.wrapper.${idSuffix}`;
+        manifest.name = customName; 
+        manifest.description = `Wrapper customizado: ${customName}`;
+        manifest.logo = customLogo;
+        manifest.version = PROJECT_VERSION; 
+        delete manifest.background; 
+        
+        res.json(manifest);
+    } catch (error) {
+        res.status(500).json({ error: "Upstream error" });
     }
-  ],
-  "formatter": {
-    "id": "custom",
-    "definition": {
-      "name": "{stream.resolution::=2160p[\"🎞️ 4K\"||\"\"]}{stream.resolution::=1440p[\"🎞️ 2K\"||\"\"]}{stream.resolution::=1080p[\"🎞️ FHD\"||\"\"]}{stream.resolution::=720p[\"💿 HD\"||\"\"]}{stream.resolution::=576p[\"📼 576P\"||\"\"]}{stream.resolution::=480p[\"📼 480P\"||\"\"]}{stream.resolution::exists[\"\"||\"❔ Unkown Resolution\"]}\n{stream.quality::~REMUX[\"📀 Remux\"||\"\"]}{stream.quality::=BluRay[\"💿 BluRay\"||\"\"]}{stream.quality::~DL[\"🌐 WEBDL\"||\"\"]}{stream.quality::=WEBRIP[\"🖥 WEBRip\"||\"\"]}{stream.quality::=HDRIP[\"💾 HDRip\"||\"\"]}{stream.quality::~HC[\"💾 HC\"||\"\"]}{stream.quality::=DVDRip[\"💾 DVDRip\"||\"\"]}{stream.quality::=HDTV[\"💾 HDTV\"||\"\"]}{stream.quality::=TS[\"💾 TS\"||\"\"]}{stream.quality::=TC[\"💾 TC\"||\"\"]}",
-      "description": "{stream.network::exists[\" 🍿 {stream.network}\"||\"\"]}\n🧩{addon.name} 🫆 {service.shortName}{service.cached::istrue[\"⚡\"||\"\"]}{service.cached::isfalse[\"⏳\"||\"\"]} {stream.proxied::istrue[\"👻\"||\"\"]}{stream.seeders::>0[\"🌱{stream.seeders}  \"||\"\"]}\n{stream.visualTags::exists[\"📺{stream.visualTags::join(' · ')} \"||\"\"]}{stream.audioTags::exists[\"🔊 {stream.audioTags::join(' 🎧 ')}\"||\"\"]} \n{stream.size::>0[\"📁 {stream.size::bytes} \"||\"\"]}{stream.folderSize::>0[\"📦 {stream.folderSize::bytes}\"||\"\"]}{stream.duration::>0[\"⏱️ {stream.duration::time} \"||\"\"]}\n{stream.languages::exists[\"🗣 {stream.uLanguageEmojis::join(' / ')}\"||\"\"]}{stream.title::~brazilian::or::stream.filename::~brazilian::or::stream.title::~dublado::or::stream.filename::~dublado::or::stream.title::~'pt-br'::or::stream.filename::~'pt-br'::or::stream.title::~'multi-audio'::or::stream.filename::~'multi-audio'::or::stream.releaseGroup::=100real::or::stream.releaseGroup::=3lton::or::stream.releaseGroup::=aconduta::or::stream.releaseGroup::=adamantium::or::stream.releaseGroup::=alfahd::or::stream.releaseGroup::=amantedoharpia::or::stream.releaseGroup::=anonimo::or::stream.releaseGroup::=anonymous07::or::stream.releaseGroup::=asm::or::stream.releaseGroup::=asy::or::stream.releaseGroup::=azx::or::stream.releaseGroup::=bad::or::stream.releaseGroup::=bdc::or::stream.releaseGroup::=big::or::stream.releaseGroup::=bioma::or::stream.releaseGroup::=bnd::or::stream.releaseGroup::=brhd::or::stream.releaseGroup::=byoutou::or::stream.releaseGroup::=c.a.a::or::stream.releaseGroup::=c0ral::or::stream.releaseGroup::=c76::or::stream.releaseGroup::=cbr::or::stream.releaseGroup::=cory::or::stream.releaseGroup::=cza::or::stream.releaseGroup::=dalmaciojr::or::stream.releaseGroup::=dks::or::stream.releaseGroup::=dm::or::stream.releaseGroup::=elm4g0::or::stream.releaseGroup::=emmid::or::stream.releaseGroup::=eri::or::stream.releaseGroup::=estagiario::or::stream.releaseGroup::=extr3muss::or::stream.releaseGroup::=fantasma223::or::stream.releaseGroup::=ff::or::stream.releaseGroup::=fido::or::stream.releaseGroup::=filehd::or::stream.releaseGroup::=fly::or::stream.releaseGroup::=foxx::or::stream.releaseGroup::=franzopl::or::stream.releaseGroup::=freddiegellar::or::stream.releaseGroup::=freedomhd::or::stream.releaseGroup::=g4ris::or::stream.releaseGroup::=gmn::or::stream.releaseGroup::=got::or::stream.releaseGroup::=gris::or::stream.releaseGroup::=gueira::or::stream.releaseGroup::=izards::or::stream.releaseGroup::=jk::or::stream.releaseGroup::=joekerr::or::stream.releaseGroup::=jus::or::stream.releaseGroup::=kallango::or::stream.releaseGroup::=lapumia::or::stream.releaseGroup::=lcd::or::stream.releaseGroup::=lmb::or::stream.releaseGroup::=ltda::or::stream.releaseGroup::=lucano22::or::stream.releaseGroup::=lukas::or::stream.releaseGroup::=madruga::or::stream.releaseGroup::=master::or::stream.releaseGroup::=mdg::or::stream.releaseGroup::=mlh::or::stream.releaseGroup::=n3g4n::or::stream.releaseGroup::=nex::or::stream.releaseGroup::=nous3r::or::stream.releaseGroup::=ntz::or::stream.releaseGroup::=olympus::or::stream.releaseGroup::=oscarniemeyer::or::stream.releaseGroup::=pd::or::stream.releaseGroup::=pia::or::stream.releaseGroup::=piratadigital::or::stream.releaseGroup::=plushd::or::stream.releaseGroup::=potatin::or::stream.releaseGroup::=princeputt20::or::stream.releaseGroup::=professor_x::or::stream.releaseGroup::=rarbr::or::stream.releaseGroup::=riper::or::stream.releaseGroup::=rk::or::stream.releaseGroup::=rlee::or::stream.releaseGroup::=rq::or::stream.releaseGroup::=sacerdoti::or::stream.releaseGroup::=sgf::or::stream.releaseGroup::=sh4down::or::stream.releaseGroup::=shaka::or::stream.releaseGroup::=shelby::or::stream.releaseGroup::=sherlock::or::stream.releaseGroup::=sigla::or::stream.releaseGroup::=spaghettimancer::or::stream.releaseGroup::=tars::or::stream.releaseGroup::=thr::or::stream.releaseGroup::=tijuco::or::stream.releaseGroup::=tossato::or::stream.releaseGroup::=troidex::or::stream.releaseGroup::=tupac::or::stream.releaseGroup::=upd::or::stream.releaseGroup::=vnlls::or::stream.releaseGroup::=witchhunter::or::stream.releaseGroup::=wtv::or::stream.releaseGroup::=wyrm::or::stream.releaseGroup::=xiquexique::or::stream.releaseGroup::=xprince00::or::stream.releaseGroup::=yatogam1::or::stream.releaseGroup::=zmg::or::stream.releaseGroup::=znm[\" / 🇧🇷\"||\"\"]}\n{stream.indexer::exists[\"📌 {stream.indexer}\"||\"\"]}{stream.releaseGroup::exists[\" 🏷️{stream.releaseGroup}\"||\"\"]}\n{stream.filename::exists[\"{stream.filename}\"||\"\"]}"
+});
+
+// --- ROTA 4: CATCH-ALL (REDIRECIONAMENTO) ---
+app.get('/addon/*', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    const originalPath = req.url.replace('/addon', '');
+    const upstreamUrl = `${UPSTREAM_BASE}${originalPath}`;
+    
+    if (originalPath.startsWith('/stream/')) {
+        res.setHeader('Content-Type', 'application/json');
+        try {
+            const response = await axios.get(upstreamUrl);
+            return res.json({ streams: response.data.streams || [] });
+        } catch (error) {
+            return res.status(404).json({ streams: [] }); 
+        }
     }
-  },
-  "preferredQualities": ["BluRay", "WEB-DL", "WEBRip", "HDRip", "HC HD-Rip", "DVDRip", "HDTV", "CAM", "TS", "TC", "SCR", "Unknown", "BluRay REMUX"],
-  "preferredResolutions": ["2160p", "1440p", "1080p", "720p", "Unknown", "576p", "480p"],
-  "excludedQualities": ["CAM"],
-  "addonName": "AIO PT-BR",
-  "addonDescription": "AIOStreams configurado para priorizar conteudo dublado em PT-BR.",
-  "requiredLanguages": ["Portuguese", "Multi", "Dual Audio", "Dubbed", "Unknown"],
-  "preferredLanguages": ["Portuguese", "Multi", "Dubbed", "Dual Audio", "Unknown"],
-  "excludedStreamTypes": ["p2p"],
-  "preferredStreamTypes": ["debrid", "http"],
-  "preferredKeywords": ["riper", "bioma", "alfahd", "c76", "pia", "sigla", "madruga", "ff", "pd", "yatogam1", "asy", "g4ris", "sh4down", "kallango", "upd", "100real", "wtv", "tars", "mdg", "cza", "tupac", "eck", "fly", "mlh", "amantedoharpia", "potatin", "lukas", "lucano22", "witchhunter", "c0ral"],
-  "preferredStreamExpressions": [
-    "indexer(streams, 'BluDV', 'Comando', 'DarkMahou', 'EraiRaws', 'Keroseed', 'NyaaSi', 'RedeTorrent', 'TorrentDosFilmes', 'VacaTorrent', 'RedeTorrent', 'ApacheTorrent', 'Stark' )",
-    "releaseGroup(streams, '100real', '3lton', 'aconduta', 'adamantium', 'alfahd', 'AndreTPF', 'amantedoharpia', 'anonimo', 'anonymous07', 'asm', 'asy', 'azx', 'bad', 'bdc', 'big', 'BiOMA', 'bnd', 'brhd', 'byoutou', 'C.A.A', 'c0ral', 'c76', 'cbr', 'cory', 'cza', 'dalmaciojr', 'DKS', 'dm', 'elm4g0', 'emmid', 'eri', 'estagiario', 'extr3muss', 'fantasma223', 'ff', 'fido', 'filehd', 'fly', 'foxx', 'franzopl', 'freddiegellar', 'FreedomHD', 'g4ris', 'gmn', 'got', 'gris', 'gueira', 'izards', 'jk', 'joekerr', 'jus', 'kallango', 'lapumia', 'lcd', 'lmb', 'ltda', 'lucano22', 'lukas', 'madruga', 'master', 'mdg', 'mlh', 'n3g4n', 'nex', 'nous3r', 'ntz', 'olympus', 'oscarniemeyer', 'pd', 'pia', 'piratadigital', 'plushd', 'potatin', 'princeputt20', 'Professor_X', 'RARBR', 'riper', 'rk', 'rlee', 'sacerdoti', 'sgf', 'sh4down', 'shaka', 'shelby', 'sherlock', 'sigla', 'spaghettimancer', 'tars', 'thr', 'tijuco', 'tossato', 'troidex', 'tupac', 'upd', 'vnlls', 'witchhunter', 'WTV', 'WYRM', 'xiquexique', 'xprince00', 'yatogam1', 'zmg', 'znm' )"
-  ],
-  "resultLimits": { "addon": 6 },
-  "size": { "global": { "movies": [0, 100000000000], "series": [0, 100000000000] } },
-  "hideErrors": true,
-  "statistics": { "enabled": true, "position": "bottom", "statsToShow": ["addon"] },
-  "autoPlay": { "enabled": true, "attributes": ["service", "proxied", "resolution", "quality", "encode", "audioTags", "visualTags", "languages", "releaseGroup"] },
-  "precacheNextEpisode": true,
-  "alwaysPrecache": true,
-  "catalogModifications": [
-    { "id": "6d5e3b0.tmdb.top", "name": "Popular", "type": "movie", "enabled": true },
-    { "id": "6d5e3b0.tmdb.top", "name": "Popular", "type": "series", "enabled": true },
-    { "id": "6d5e3b0.tmdb.trending", "name": "Tendências", "type": "movie", "enabled": true },
-    { "id": "6d5e3b0.streaming.nfx", "name": "Netflix", "type": "movie", "enabled": true },
-    { "id": "6d5e3b0.streaming.amp", "name": "Prime Video", "type": "series", "enabled": true }
-  ]
-};
+    res.redirect(307, upstreamUrl);
+});
 
 // ============================================================
-// 3. INTERFACE HTML (GET /) - ESSENCIAL SER A PRIMEIRA ROTA
+// 2. DADOS E TEMPLATES (NO FINAL PARA ORGANIZAÇÃO)
 // ============================================================
-const generatorHtml = `
+
+function getAioConfig() {
+    // Retorna o JSON limpo e funcional (Baseado no arquivo 3)
+    return {
+      "services": [
+        { "id": "torbox", "enabled": true, "credentials": {} }, // Torbox habilitado por padrão no template
+        { "id": "realdebrid", "enabled": false, "credentials": {} },
+        { "id": "alldebrid", "enabled": false, "credentials": {} },
+        { "id": "premiumize", "enabled": false, "credentials": {} },
+        { "id": "debridlink", "enabled": false, "credentials": {} },
+        { "id": "stremio_nntp", "enabled": false, "credentials": {} },
+        { "id": "nzbdav", "enabled": false, "credentials": {} },
+        { "id": "altmount", "enabled": false, "credentials": {} },
+        { "id": "offcloud", "enabled": false, "credentials": {} },
+        { "id": "putio", "enabled": false, "credentials": {} },
+        { "id": "easynews", "enabled": false, "credentials": {} },
+        { "id": "easydebrid", "enabled": false, "credentials": {} },
+        { "id": "debrider", "enabled": false, "credentials": {} },
+        { "id": "pikpak", "enabled": false, "credentials": {} },
+        { "id": "seedr", "enabled": false, "credentials": {} }
+      ],
+      "presets": [
+        {
+          "type": "stremthruTorz",
+          "instanceId": "52c",
+          "enabled": true,
+          "options": {
+            "name": "StremThru Torz",
+            "timeout": 15000,
+            "resources": ["stream"],
+            "mediaTypes": [],
+            "services": ["torbox"], // MANTIDO APENAS UM SERVIÇO PARA EVITAR CRASH
+            "includeP2P": false,
+            "useMultipleInstances": false
+          }
+        },
+        {
+          "type": "torbox-search",
+          "instanceId": "f7a",
+          "enabled": true,
+          "options": {
+            "name": "TorBox Search",
+            "timeout": 15000,
+            "sources": ["torrent"],
+            "services": ["torbox"],
+            "mediaTypes": [],
+            "userSearchEngines": false,
+            "onlyShowUserSearchResults": false,
+            "useMultipleInstances": false
+          }
+        },
+        {
+          "type": "bitmagnet",
+          "instanceId": "437",
+          "enabled": true,
+          "options": {
+            "name": "Bitmagnet",
+            "timeout": 15000,
+            "mediaTypes": [],
+            "services": ["torbox"],
+            "useMultipleInstances": false,
+            "paginate": false
+          }
+        },
+        {
+          "type": "tmdb-addon",
+          "instanceId": "6d5",
+          "enabled": true,
+          "options": {
+            "name": "The Movie Database",
+            "timeout": 15000,
+            "resources": ["catalog", "meta"],
+            "url": "https://tmdb.elfhosted.com/N4IgTgDgJgRg1gUwJ4gFwgC4AYC0AzMBBHSWEAGhAjAHsA3ASygQEkBbWFqNTMAVwQVwCDHzAA7dp27oM-QZQA2AQ3EBzPsrWD0EDDgBCAJSEBnOQmVsG6tAG0Q4vAA8hACxhshUcRCFW-SgBjfiEINkCQZQxItRo-AF1g6OVFGjVTe1AmHgwOGAA6DHihDCQIHRA2egYFRytKgAV4vhUwMzcaAHcWcQAJGjYdOQEAX3JsmUx8opLKMoqeUwQwWszKcQaeZohW5XbKU06e-sHh+XHJ3JmLcSgbNVLyyurGOs2hngAVQjuHju6vQGn1QIwQlxAOVkN1+91s82eSxWayEH0qPwQf3hICOgNOILBEKhOIsVgeBScrgRi3Qr1qqK26AAciI8IoGFScccgWc0ISJpCpuZCGT1BSXE8aTjkQh1vUQSAWRg2RyASdgecxgLicLLNYxR4vNSXjV3oyQH0DAB5AAEAFllJzcereaCLtqhaT9WoCobJZVlqtZQyFZbbQ6ndz8ZrwR6ll7yT5IgsTW8Q5UACIMUziZAAajVPIJ7qu6F1op9Sf9SKDcrRPCzOfzhejfJLgvjIu9BQC1dppvT21WQxtADUmAgaC2NW2taWSV3yb3jTWURtzY1hwgxxOp4cozO3XOO2WE2LwsnEf20+uFY19lYaHxxBgC-u8Yf+fPy92L33pbWg7oPeYCPs+r7Tq6X4nguepLjE-50maCoAIIQBAijbl8o5vlyH5Qe2Opnj60SXlKgZrvKlRoRhWE4ZBxbHkRi5inEZGpvSt6VAA4mkMDxCoKDvi6jGxt+xEFCEfCIQOXE8AAwvw4hBG4SC0IoigMTGRKeixPpsf+FHBnJ6C8TQ-EYcoQl4SJ2lxqeemSaEK5ljKdbmopz4qWpNAaVps7gkkUTaEY0T-OgJjJOY8lPi+aAAKzCShIVheovTcZihCZLI8hCJiygwJhyUIKFGDhSAeCpMsarFaVDwAOoMBgbhSDAdW2OglWKNVoxAA/manifest.json",
+            "Enable Adult Content": false,
+            "hideEpisodeThumbnails": false,
+            "provideImdbId": true,
+            "ageRating": "R",
+            "language": "pt-BR"
+          }
+        },
+        {
+          "type": "anime-kitsu",
+          "instanceId": "3ac",
+          "enabled": true,
+          "options": {
+            "name": "Anime Kitsu",
+            "timeout": 15000,
+            "resources": ["catalog", "meta"]
+          }
+        }
+      ],
+      "formatter": {
+        "id": "custom",
+        "definition": {
+          "name": "{stream.resolution::=2160p[\"🎞️ 4K\"||\"\"]}{stream.resolution::=1440p[\"🎞️ 2K\"||\"\"]}{stream.resolution::=1080p[\"🎞️ FHD\"||\"\"]}{stream.resolution::=720p[\"💿 HD\"||\"\"]}{stream.resolution::=576p[\"📼 576P\"||\"\"]}{stream.resolution::=480p[\"📼 480P\"||\"\"]}{stream.resolution::exists[\"\"||\"❔ Unkown Resolution\"]}\n{stream.quality::~REMUX[\"📀 Remux\"||\"\"]}{stream.quality::=BluRay[\"💿 BluRay\"||\"\"]}{stream.quality::~DL[\"🌐 WEBDL\"||\"\"]}{stream.quality::=WEBRIP[\"🖥 WEBRip\"||\"\"]}{stream.quality::=HDRIP[\"💾 HDRip\"||\"\"]}{stream.quality::~HC[\"💾 HC\"||\"\"]}{stream.quality::=DVDRip[\"💾 DVDRip\"||\"\"]}{stream.quality::=HDTV[\"💾 HDTV\"||\"\"]}{stream.quality::=TS[\"💾 TS\"||\"\"]}{stream.quality::=TC[\"💾 TC\"||\"\"]}",
+          "description": "{stream.network::exists[\" 🍿 {stream.network}\"||\"\"]}\n🧩{addon.name} 🫆 {service.shortName}{service.cached::istrue[\"⚡\"||\"\"]}{service.cached::isfalse[\"⏳\"||\"\"]} {stream.proxied::istrue[\"👻\"||\"\"]}{stream.seeders::>0[\"🌱{stream.seeders}  \"||\"\"]}\n{stream.visualTags::exists[\"📺{stream.visualTags::join(' · ')} \"||\"\"]}{stream.audioTags::exists[\"🔊 {stream.audioTags::join(' 🎧 ')}\"||\"\"]} \n{stream.size::>0[\"📁 {stream.size::bytes} \"||\"\"]}{stream.folderSize::>0[\"📦 {stream.folderSize::bytes}\"||\"\"]}{stream.duration::>0[\"⏱️ {stream.duration::time} \"||\"\"]}\n{stream.languages::exists[\"🗣 {stream.uLanguageEmojis::join(' / ')}\"||\"\"]}{stream.title::~brazilian::or::stream.filename::~brazilian::or::stream.title::~dublado::or::stream.filename::~dublado::or::stream.title::~'pt-br'::or::stream.filename::~'pt-br'::or::stream.title::~'multi-audio'::or::stream.filename::~'multi-audio'::or::stream.releaseGroup::=100real::or::stream.releaseGroup::=3lton::or::stream.releaseGroup::=aconduta::or::stream.releaseGroup::=adamantium::or::stream.releaseGroup::=alfahd::or::stream.releaseGroup::=amantedoharpia::or::stream.releaseGroup::=anonimo::or::stream.releaseGroup::=anonymous07::or::stream.releaseGroup::=asm::or::stream.releaseGroup::=asy::or::stream.releaseGroup::=azx::or::stream.releaseGroup::=bad::or::stream.releaseGroup::=bdc::or::stream.releaseGroup::=big::or::stream.releaseGroup::=bioma::or::stream.releaseGroup::=bnd::or::stream.releaseGroup::=brhd::or::stream.releaseGroup::=byoutou::or::stream.releaseGroup::=c.a.a::or::stream.releaseGroup::=c0ral::or::stream.releaseGroup::=c76::or::stream.releaseGroup::=cbr::or::stream.releaseGroup::=cory::or::stream.releaseGroup::=cza::or::stream.releaseGroup::=dalmaciojr::or::stream.releaseGroup::=dks::or::stream.releaseGroup::=dm::or::stream.releaseGroup::=elm4g0::or::stream.releaseGroup::=emmid::or::stream.releaseGroup::=eri::or::stream.releaseGroup::=estagiario::or::stream.releaseGroup::=extr3muss::or::stream.releaseGroup::=fantasma223::or::stream.releaseGroup::=ff::or::stream.releaseGroup::=fido::or::stream.releaseGroup::=filehd::or::stream.releaseGroup::=fly::or::stream.releaseGroup::=foxx::or::stream.releaseGroup::=franzopl::or::stream.releaseGroup::=freddiegellar::or::stream.releaseGroup::=freedomhd::or::stream.releaseGroup::=g4ris::or::stream.releaseGroup::=gmn::or::stream.releaseGroup::=got::or::stream.releaseGroup::=gris::or::stream.releaseGroup::=gueira::or::stream.releaseGroup::=izards::or::stream.releaseGroup::=jk::or::stream.releaseGroup::=joekerr::or::stream.releaseGroup::=jus::or::stream.releaseGroup::=kallango::or::stream.releaseGroup::=lapumia::or::stream.releaseGroup::=lcd::or::stream.releaseGroup::=lmb::or::stream.releaseGroup::=ltda::or::stream.releaseGroup::=lucano22::or::stream.releaseGroup::=lukas::or::stream.releaseGroup::=madruga::or::stream.releaseGroup::=master::or::stream.releaseGroup::=mdg::or::stream.releaseGroup::=mlh::or::stream.releaseGroup::=n3g4n::or::stream.releaseGroup::=nex::or::stream.releaseGroup::=nous3r::or::stream.releaseGroup::=ntz::or::stream.releaseGroup::=olympus::or::stream.releaseGroup::=oscarniemeyer::or::stream.releaseGroup::=pd::or::stream.releaseGroup::=pia::or::stream.releaseGroup::=piratadigital::or::stream.releaseGroup::=plushd::or::stream.releaseGroup::=potatin::or::stream.releaseGroup::=princeputt20::or::stream.releaseGroup::=professor_x::or::stream.releaseGroup::=rarbr::or::stream.releaseGroup::=riper::or::stream.releaseGroup::=rk::or::stream.releaseGroup::=rlee::or::stream.releaseGroup::=rq::or::stream.releaseGroup::=sacerdoti::or::stream.releaseGroup::=sgf::or::stream.releaseGroup::=sh4down::or::stream.releaseGroup::=shaka::or::stream.releaseGroup::=shelby::or::stream.releaseGroup::=sherlock::or::stream.releaseGroup::=sigla::or::stream.releaseGroup::=spaghettimancer::or::stream.releaseGroup::=tars::or::stream.releaseGroup::=thr::or::stream.releaseGroup::=tijuco::or::stream.releaseGroup::=tossato::or::stream.releaseGroup::=troidex::or::stream.releaseGroup::=tupac::or::stream.releaseGroup::=upd::or::stream.releaseGroup::=vnlls::or::stream.releaseGroup::=witchhunter::or::stream.releaseGroup::=wtv::or::stream.releaseGroup::=wyrm::or::stream.releaseGroup::=xiquexique::or::stream.releaseGroup::=xprince00::or::stream.releaseGroup::=yatogam1::or::stream.releaseGroup::=zmg::or::stream.releaseGroup::=znm[\" / 🇧🇷\"||\"\"]}\n{stream.indexer::exists[\"📌 {stream.indexer}\"||\"\"]}{stream.releaseGroup::exists[\" 🏷️{stream.releaseGroup}\"||\"\"]}\n{stream.filename::exists[\"{stream.filename}\"||\"\"]}"
+        }
+      },
+      "preferredQualities": ["BluRay", "WEB-DL", "WEBRip", "HDRip", "HC HD-Rip", "DVDRip", "HDTV", "CAM", "TS", "TC", "SCR", "Unknown", "BluRay REMUX"],
+      "preferredResolutions": ["2160p", "1440p", "1080p", "720p", "Unknown", "576p", "480p"],
+      "excludedQualities": ["CAM"],
+      "addonName": "AIO PT-BR",
+      "addonDescription": "AIOStreams configurado para priorizar conteudo dublado em PT-BR.",
+      "requiredLanguages": ["Portuguese", "Multi", "Dual Audio", "Dubbed", "Unknown"],
+      "preferredLanguages": ["Portuguese", "Multi", "Dubbed", "Dual Audio", "Unknown"],
+      "excludedStreamTypes": ["p2p"],
+      "preferredStreamTypes": ["debrid", "http"],
+      "preferredKeywords": ["riper", "bioma", "alfahd", "c76", "pia", "sigla", "madruga", "ff", "pd", "yatogam1", "asy", "g4ris", "sh4down", "kallango", "upd", "100real", "wtv", "tars", "mdg", "cza", "tupac", "eck", "fly", "mlh", "amantedoharpia", "potatin", "lukas", "lucano22", "witchhunter", "c0ral"],
+      "preferredStreamExpressions": [
+        "indexer(streams, 'BluDV', 'Comando', 'DarkMahou', 'EraiRaws', 'Keroseed', 'NyaaSi', 'RedeTorrent', 'TorrentDosFilmes', 'VacaTorrent', 'RedeTorrent', 'ApacheTorrent', 'Stark' )",
+        "releaseGroup(streams, '100real', '3lton', 'aconduta', 'adamantium', 'alfahd', 'AndreTPF', 'amantedoharpia', 'anonimo', 'anonymous07', 'asm', 'asy', 'azx', 'bad', 'bdc', 'big', 'BiOMA', 'bnd', 'brhd', 'byoutou', 'C.A.A', 'c0ral', 'c76', 'cbr', 'cory', 'cza', 'dalmaciojr', 'DKS', 'dm', 'elm4g0', 'emmid', 'eri', 'estagiario', 'extr3muss', 'fantasma223', 'ff', 'fido', 'filehd', 'fly', 'foxx', 'franzopl', 'freddiegellar', 'FreedomHD', 'g4ris', 'gmn', 'got', 'gris', 'gueira', 'izards', 'jk', 'joekerr', 'jus', 'kallango', 'lapumia', 'lcd', 'lmb', 'ltda', 'lucano22', 'lukas', 'madruga', 'master', 'mdg', 'mlh', 'n3g4n', 'nex', 'nous3r', 'ntz', 'olympus', 'oscarniemeyer', 'pd', 'pia', 'piratadigital', 'plushd', 'potatin', 'princeputt20', 'Professor_X', 'RARBR', 'riper', 'rk', 'rlee', 'sacerdoti', 'sgf', 'sh4down', 'shaka', 'shelby', 'sherlock', 'sigla', 'spaghettimancer', 'tars', 'thr', 'tijuco', 'tossato', 'troidex', 'tupac', 'upd', 'vnlls', 'witchhunter', 'WTV', 'WYRM', 'xiquexique', 'xprince00', 'yatogam1', 'zmg', 'znm' )"
+      ],
+      "resultLimits": { "addon": 6 },
+      "size": { "global": { "movies": [0, 100000000000], "series": [0, 100000000000] } },
+      "hideErrors": true,
+      "statistics": { "enabled": true, "position": "bottom", "statsToShow": ["addon"] },
+      "autoPlay": { "enabled": true, "attributes": ["service", "proxied", "resolution", "quality", "encode", "audioTags", "visualTags", "languages", "releaseGroup"] },
+      "precacheNextEpisode": true,
+      "alwaysPrecache": true,
+      "catalogModifications": [
+        { "id": "6d5e3b0.tmdb.top", "name": "Popular", "type": "movie", "enabled": true },
+        { "id": "6d5e3b0.tmdb.top", "name": "Popular", "type": "series", "enabled": true },
+        { "id": "6d5e3b0.tmdb.trending", "name": "Tendências", "type": "movie", "enabled": true },
+        { "id": "6d5e3b0.streaming.nfx", "name": "Netflix", "type": "movie", "enabled": true },
+        { "id": "6d5e3b0.streaming.amp", "name": "Prime Video", "type": "series", "enabled": true }
+      ]
+    };
+}
+
+function getGeneratorHtml() {
+    return `
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -202,9 +257,8 @@ const generatorHtml = `
 
         <form class="space-y-6">
             
-            <!-- 1. Instância -->
+            <!-- Instância -->
             <div class="hidden">
-                <label class="text-xs font-bold text-gray-500 uppercase ml-1">1. Servidor (Bridge)</label>
                 <select id="instance" class="w-full input-dark p-3 rounded-lg text-sm mt-1 cursor-pointer">
                     <option value="${STREMTHRU_HOST}">Midnight</option>
                 </select>
@@ -222,7 +276,7 @@ const generatorHtml = `
                 </div>
             </div>
 
-            <!-- 2. Fontes Extras -->
+            <!-- Fontes Extras -->
             <div class="divider"></div>
             <div class="space-y-3">
                 <label class="text-xs font-bold text-gray-500 uppercase ml-1">2. Fontes de Torrent</label>
@@ -242,7 +296,7 @@ const generatorHtml = `
                 </div>
             </div>
 
-            <!-- 3. Debrids (Tokens) -->
+            <!-- Debrids -->
             <div class="divider"></div>
             
             <div class="space-y-6">
@@ -253,16 +307,14 @@ const generatorHtml = `
                         <input type="checkbox" id="use_tb" class="w-5 h-5 accent-purple-600 cursor-pointer" onchange="validate()">
                         <span class="text-sm font-bold text-white">TorBox</span>
                     </div>
-                    
                     <div class="input-container">
                         <input type="text" id="tb_key" placeholder="Cole sua API KEY" class="w-full input-dark px-4 py-3 rounded-lg text-sm">
                     </div>
-                    
                     <div class="grid grid-cols-1 gap-3">
                         <a href="https://torbox.app/subscription?referral=${REFERRAL_TB}" target="_blank" class="btn-sub btn-sub-tb w-full shadow-lg shadow-purple-900/20 text-center font-bold">
                             Assinar TorBox <i class="fas fa-external-link-alt ml-2"></i>
                         </a>
-                        <p class="text-xs text-center text-green-400 mt-1">Ganhe 7 dias extras/mês ou 84 dias por 1 ano assinado: <span id="tb_ref_code" class="font-mono text-xs cursor-pointer select-all underline" onclick="copyRefCode('${REFERRAL_TB}')">Copiar Código</span></p>
+                        <p class="text-xs text-center text-green-400 mt-1">Ganhe 7 dias extras: <span id="tb_ref_code" class="font-mono text-xs cursor-pointer select-all underline" onclick="copyRefCode('${REFERRAL_TB}')">Copiar Código</span></p>
                     </div>
                 </div>
 
@@ -272,11 +324,9 @@ const generatorHtml = `
                         <input type="checkbox" id="use_rd" class="w-5 h-5 accent-blue-600 cursor-pointer" onchange="validate()">
                         <span class="text-sm font-bold text-white">Real-Debrid</span>
                     </div>
-                    
                     <div class="input-container">
                         <input type="text" id="rd_key" placeholder="Cole sua API KEY" class="w-full input-dark px-4 py-3 rounded-lg text-sm" >
                     </div>
-                    
                     <div class="grid grid-cols-1 gap-3">
                         <a href="http://real-debrid.com/?id=${REFERRAL_RD}" target="_blank" class="btn-sub btn-sub-rd w-full shadow-lg shadow-blue-900/20 text-center font-bold">
                             Assinar Real-Debrid <i class="fas fa-external-link-alt ml-2"></i>
@@ -318,13 +368,18 @@ const generatorHtml = `
 
     <div id="toast" class="fixed bottom-5 right-5 bg-green-600 text-white px-4 py-2 rounded shadow-lg hidden">Link Copiado!</div>
 
+    <!-- Injeta o template JSON (Codificado para evitar erros de sintaxe no JS) -->
+    <script id="aio-template" type="application/json">${JSON.stringify(getAioConfig())}</script>
+
     <script>
         const STREMTHRU_HOST = "${STREMTHRU_HOST}";
         const REFERRAL_TB = "${REFERRAL_TB}";
         const REFERRAL_RD = "${REFERRAL_RD}";
         const TORRENTIO_PT_URL = "${TORRENTIO_PT_URL}";
-        
-        const AIO_TEMPLATE = ${JSON.stringify(AIO_CONFIG_JSON)};
+
+        function getAioTemplate() {
+            return JSON.parse(document.getElementById('aio-template').textContent);
+        }
 
         function updatePreview() {
             const url = document.getElementById('custom_logo').value.trim();
@@ -340,16 +395,14 @@ const generatorHtml = `
 
             rdInput.disabled = !rd;
             tbInput.disabled = !tb;
-
             rdInput.parentElement.style.opacity = rd ? '1' : '0.5';
             tbInput.parentElement.style.opacity = tb ? '1' : '0.5';
-
+            
             if(!rd) rdInput.value = '';
             if(!tb) tbInput.value = '';
-            
+
             const isRdValid = rd && rdInput.value.trim().length > 5;
             const isTbValid = tb && tbInput.value.trim().length > 5;
-            
             const isValid = isRdValid || isTbValid;
 
             if(isValid) {
@@ -380,50 +433,38 @@ const generatorHtml = `
             const cName = document.getElementById('custom_name').value.trim();
             const cLogo = document.getElementById('custom_logo').value.trim();
             const useTorrentio = document.getElementById('use_torrentio').checked;
-            
             const rdKey = document.getElementById('rd_key').value.trim();
             const tbKey = document.getElementById('tb_key').value.trim();
 
             const finalName = cName || "Brazuca"; 
-
             let proxyParams = \`?name=\${encodeURIComponent(finalName)}\`;
             if(cLogo) proxyParams += \`&logo=\${encodeURIComponent(cLogo)}\`;
-
             const myMirrorUrl = window.location.origin + "/addon/manifest.json" + proxyParams + "&t=" + Date.now();
 
             let config = { upstreams: [], stores: [] };
-            
             config.upstreams.push({ u: myMirrorUrl });
+            if (useTorrentio) config.upstreams.push({ u: TORRENTIO_PT_URL });
             
-            if (useTorrentio) {
-                config.upstreams.push({ u: TORRENTIO_PT_URL });
-            }
-            
-            if (document.getElementById('use_rd').checked && rdKey) {
-                config.stores.push({ c: "rd", t: rdKey });
-            }
-            if (document.getElementById('use_tb').checked && tbKey) {
-                config.stores.push({ c: "tb", t: tbKey });
-            }
+            if (document.getElementById('use_rd').checked && rdKey) config.stores.push({ c: "rd", t: rdKey });
+            if (document.getElementById('use_tb').checked && tbKey) config.stores.push({ c: "tb", t: tbKey });
 
             const b64 = btoa(JSON.stringify(config));
             const hostClean = host.replace(/^https?:\\/\\//, '');
-            const httpsUrl = \`\${host}/stremio/wrap/\${b64}/manifest.json\`;
             const stremioUrl = \`stremio://\${hostClean}/stremio/wrap/\${b64}/manifest.json\`; 
 
-            document.getElementById('finalUrl').value = httpsUrl;
+            document.getElementById('finalUrl').value = stremioUrl.replace('stremio://', 'https://');
             document.getElementById('installBtn').href = stremioUrl;
             
-            // --- GERAÇÃO INTELIGENTE AIOSTREAMS (CLIENT-SIDE) ---
-            const aioConfig = JSON.parse(JSON.stringify(AIO_TEMPLATE));
+            // --- GERAÇÃO INTELIGENTE AIOSTREAMS ---
+            const aioConfig = getAioTemplate();
             
-            // Injeta Credenciais
             if (document.getElementById('use_rd').checked && rdKey) {
                 const rdService = aioConfig.services.find(s => s.id === 'realdebrid');
                 if (rdService) {
                     rdService.enabled = true;
                     rdService.credentials = { apiKey: rdKey };
                 }
+                // NÃO MODIFICAMOS O PRESET stremthruTorz PARA EVITAR CRASH
             }
             
             if (document.getElementById('use_tb').checked && tbKey) {
@@ -434,7 +475,7 @@ const generatorHtml = `
                 }
             }
 
-            // Adiciona o Brazuca Wrapper como um preset de Addon (SEM TOCAR NO STREMTHRU PRESET)
+            // Injeta o Brazuca Wrapper como um NOVO preset
             const randomId = Math.random().toString(36).substring(7);
             aioConfig.presets.push({
                 "type": "addon",
@@ -447,6 +488,9 @@ const generatorHtml = `
             });
 
             generatedAioConfig = aioConfig;
+            
+            const aioB64 = btoa(JSON.stringify(aioConfig));
+            document.getElementById('installAioBtn').href = \`stremio://aio.atbphosting.com/\${aioB64}/manifest.json\`;
 
             document.getElementById('btnGenerate').classList.add('hidden');
             document.getElementById('resultArea').classList.remove('hidden');
@@ -458,11 +502,9 @@ const generatorHtml = `
                 alert("Por favor, clique em GERAR CONFIGURAÇÃO primeiro.");
                 return;
             }
-            
             const dataStr = JSON.stringify(generatedAioConfig, null, 2);
             const blob = new Blob([dataStr], {type: "application/json"});
             const url = URL.createObjectURL(blob);
-            
             const downloadAnchorNode = document.createElement('a');
             downloadAnchorNode.setAttribute("href", url);
             downloadAnchorNode.setAttribute("download", "aiostreams-config-PT-BR.json");
@@ -481,7 +523,7 @@ const generatorHtml = `
             btn.innerText = "LINK COPIADO!";
             setTimeout(() => btn.innerText = oldTxt, 1500);
         }
-
+        
         function copyRefCode(code) {
             navigator.clipboard.writeText(code).then(() => {
                 const toast = document.getElementById('toast');
@@ -494,69 +536,7 @@ const generatorHtml = `
 </body>
 </html>
 `;
-
-// ============================================================
-// 4. ROTAS - ORDEM CORRIGIDA (PRIMEIRO A HOME)
-// ============================================================
-app.get('/', (req, res) => res.send(generatorHtml));
-app.get('/configure', (req, res) => res.send(generatorHtml));
-
-app.get('/download/aiostreams-config.json', (req, res) => {
-    res.setHeader('Content-Disposition', 'attachment; filename="aiostreams-config-PT-BR.json"');
-    res.setHeader('Content-Type', 'application/json');
-    res.send(JSON.stringify(AIO_CONFIG_JSON, null, 2));
-});
-
-app.get('/addon/manifest.json', async (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Cache-Control', 'public, max-age=60'); 
-    
-    try {
-        const customName = req.query.name || DEFAULT_NAME;
-        const customLogo = req.query.logo || DEFAULT_LOGO;
-        
-        const response = await axios.get(`${UPSTREAM_BASE}/manifest.json`);
-        const manifest = response.data;
-
-        const idSuffix = Buffer.from(customName).toString('hex').substring(0, 10);
-        
-        manifest.id = `community.brazuca.wrapper.${idSuffix}`;
-        manifest.name = customName; 
-        manifest.description = `Wrapper customizado: ${customName}`;
-        manifest.logo = customLogo;
-        manifest.version = PROJECT_VERSION; 
-        
-        delete manifest.background; 
-        
-        res.json(manifest);
-    } catch (error) {
-        console.error("Upstream manifesto error:", error.message);
-        res.status(500).json({ error: "Upstream manifesto error" });
-    }
-});
-
-// Catch-All Redirection (DEVE SER A ÚLTIMA ROTA)
-app.get('/addon/*', async (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    
-    const originalPath = req.url.replace('/addon', '');
-    const upstreamUrl = `${UPSTREAM_BASE}${originalPath}`;
-    
-    if (originalPath.startsWith('/stream/')) {
-        res.setHeader('Content-Type', 'application/json');
-        try {
-            const response = await axios.get(upstreamUrl);
-            let streams = response.data.streams || [];
-            return res.json({ streams: streams });
-        } catch (error) {
-            console.error("Stream Fetch Error:", error.message);
-            return res.status(404).json({ streams: [] }); 
-        }
-    }
-    res.redirect(307, upstreamUrl);
-});
-
+}
 
 // ============================================================
 // 5. EXPORTAÇÃO
