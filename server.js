@@ -20,7 +20,7 @@ const REFERRAL_TB = "b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96";
 const TORRENTIO_PT_URL = "https://torrentio.strem.fun/providers=nyaasi,tokyotosho,anidex,comando,bludv,micoleaodublado|language=portuguese/manifest.json";
 
 // ============================================================
-// 2. AIOSTREAMS CONFIG (TEMPLATE LIMPO)
+// 2. AIOSTREAMS CONFIG (BASEADO NO ARQUIVO 3 - LIMPO)
 // ============================================================
 const AIO_CONFIG_JSON = {
   "services": [
@@ -50,7 +50,7 @@ const AIO_CONFIG_JSON = {
         "timeout": 15000,
         "resources": ["stream"],
         "mediaTypes": [],
-        "services": ["torbox"], 
+        "services": ["torbox"], // MANTIDO ORIGINAL PARA EVITAR ERRO
         "includeP2P": false,
         "useMultipleInstances": false
       }
@@ -148,80 +148,7 @@ const AIO_CONFIG_JSON = {
 };
 
 // ============================================================
-// 3. ROTA DOWNLOAD AIOSTREAMS (Fallback Estático)
-// ============================================================
-app.get('/download/aiostreams-config.json', (req, res) => {
-    res.setHeader('Content-Disposition', 'attachment; filename="aiostreams-config-PT-BR.json"');
-    res.setHeader('Content-Type', 'application/json');
-    res.send(JSON.stringify(AIO_CONFIG_JSON, null, 2));
-});
-
-// ============================================================
-// 4. ROTA MANIFESTO (Proxy)
-// ============================================================
-app.get('/addon/manifest.json', async (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Cache-Control', 'public, max-age=60'); 
-    
-    try {
-        const customName = req.query.name || DEFAULT_NAME;
-        const customLogo = req.query.logo || DEFAULT_LOGO;
-        
-        const response = await axios.get(`${UPSTREAM_BASE}/manifest.json`);
-        const manifest = response.data;
-
-        const idSuffix = Buffer.from(customName).toString('hex').substring(0, 10);
-        
-        manifest.id = `community.brazuca.wrapper.${idSuffix}`;
-        manifest.name = customName; 
-        manifest.description = `Wrapper customizado: ${customName}`;
-        manifest.logo = customLogo;
-        manifest.version = PROJECT_VERSION; 
-        
-        delete manifest.background; 
-        
-        res.json(manifest);
-    } catch (error) {
-        console.error("Upstream manifesto error:", error.message);
-        res.status(500).json({ error: "Upstream manifesto error" });
-    }
-});
-
-// ============================================================
-// 5. ROTA REDIRECIONADORA (FIX 404)
-// ============================================================
-
-// Captura TODAS as rotas /addon/*
-app.get('/addon/*', async (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    
-    const originalPath = req.url.replace('/addon', '');
-    const upstreamUrl = `${UPSTREAM_BASE}${originalPath}`;
-    
-    // 1. Lógica de Streams
-    if (originalPath.startsWith('/stream/')) {
-        res.setHeader('Content-Type', 'application/json');
-        
-        try {
-            const response = await axios.get(upstreamUrl);
-            let streams = response.data.streams || [];
-
-            return res.json({ streams: streams });
-
-        } catch (error) {
-            console.error("Stream Fetch Error:", error.message);
-            return res.status(404).json({ streams: [] }); 
-        }
-    }
-    
-    // 2. Lógica de Redirecionamento (Catálogos, Meta, etc.)
-    res.redirect(307, upstreamUrl);
-});
-
-
-// ============================================================
-// 6. INTERFACE DO GERADOR HTML
+// 3. INTERFACE HTML (GET /) - ESSENCIAL SER A PRIMEIRA ROTA
 // ============================================================
 const generatorHtml = `
 <!DOCTYPE html>
@@ -397,7 +324,6 @@ const generatorHtml = `
         const REFERRAL_RD = "${REFERRAL_RD}";
         const TORRENTIO_PT_URL = "${TORRENTIO_PT_URL}";
         
-        // Injeta o template JSON no escopo do JavaScript
         const AIO_TEMPLATE = ${JSON.stringify(AIO_CONFIG_JSON)};
 
         function updatePreview() {
@@ -444,7 +370,6 @@ const generatorHtml = `
         document.getElementById('use_rd').addEventListener('change', validate);
         document.getElementById('use_tb').addEventListener('change', validate);
 
-        // Variável global para armazenar a config gerada
         let generatedAioConfig = null;
 
         function generate() {
@@ -492,7 +417,7 @@ const generatorHtml = `
             // --- GERAÇÃO INTELIGENTE AIOSTREAMS (CLIENT-SIDE) ---
             const aioConfig = JSON.parse(JSON.stringify(AIO_TEMPLATE));
             
-            // Injeta Credenciais RD
+            // Injeta Credenciais
             if (document.getElementById('use_rd').checked && rdKey) {
                 const rdService = aioConfig.services.find(s => s.id === 'realdebrid');
                 if (rdService) {
@@ -501,7 +426,6 @@ const generatorHtml = `
                 }
             }
             
-            // Injeta Credenciais TB
             if (document.getElementById('use_tb').checked && tbKey) {
                 const tbService = aioConfig.services.find(s => s.id === 'torbox');
                 if (tbService) {
@@ -510,33 +434,24 @@ const generatorHtml = `
                 }
             }
 
-            // Injeta o Brazuca Wrapper como um novo preset 'addon'
-            // Gera um ID aleatório para evitar colisão
+            // Adiciona o Brazuca Wrapper como um preset de Addon (SEM TOCAR NO STREMTHRU PRESET)
             const randomId = Math.random().toString(36).substring(7);
-            
             aioConfig.presets.push({
                 "type": "addon",
                 "instanceId": "brazuca_" + randomId,
                 "enabled": true,
                 "options": {
                     "name": finalName + " Wrapper",
-                    "url": myMirrorUrl.replace('http://', 'https://') // AIO requer HTTPS
+                    "url": myMirrorUrl.replace('http://', 'https://') 
                 }
             });
 
-            // Salva na variável global para o download usar depois
             generatedAioConfig = aioConfig;
-            
-            // Gera Link de Instalação Direta AIO
-            const aioB64 = btoa(JSON.stringify(aioConfig));
-            const aioUrl = \`stremio://aio.atbphosting.com/\${aioB64}/manifest.json\`;
-            document.getElementById('installAioBtn').href = aioUrl;
 
             document.getElementById('btnGenerate').classList.add('hidden');
             document.getElementById('resultArea').classList.remove('hidden');
         }
 
-        // Função de download corrigida para gerar Blob compatível (UTF-8 application/json)
         function downloadCustomAio(e) {
             e.preventDefault();
             if (!generatedAioConfig) {
@@ -544,7 +459,6 @@ const generatorHtml = `
                 return;
             }
             
-            // Gera o Blob com tipo 'application/json' para compatibilidade total
             const dataStr = JSON.stringify(generatedAioConfig, null, 2);
             const blob = new Blob([dataStr], {type: "application/json"});
             const url = URL.createObjectURL(blob);
@@ -582,7 +496,70 @@ const generatorHtml = `
 `;
 
 // ============================================================
-// 7. EXPORTAÇÃO
+// 4. ROTAS - ORDEM CORRIGIDA (PRIMEIRO A HOME)
+// ============================================================
+app.get('/', (req, res) => res.send(generatorHtml));
+app.get('/configure', (req, res) => res.send(generatorHtml));
+
+app.get('/download/aiostreams-config.json', (req, res) => {
+    res.setHeader('Content-Disposition', 'attachment; filename="aiostreams-config-PT-BR.json"');
+    res.setHeader('Content-Type', 'application/json');
+    res.send(JSON.stringify(AIO_CONFIG_JSON, null, 2));
+});
+
+app.get('/addon/manifest.json', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'public, max-age=60'); 
+    
+    try {
+        const customName = req.query.name || DEFAULT_NAME;
+        const customLogo = req.query.logo || DEFAULT_LOGO;
+        
+        const response = await axios.get(`${UPSTREAM_BASE}/manifest.json`);
+        const manifest = response.data;
+
+        const idSuffix = Buffer.from(customName).toString('hex').substring(0, 10);
+        
+        manifest.id = `community.brazuca.wrapper.${idSuffix}`;
+        manifest.name = customName; 
+        manifest.description = `Wrapper customizado: ${customName}`;
+        manifest.logo = customLogo;
+        manifest.version = PROJECT_VERSION; 
+        
+        delete manifest.background; 
+        
+        res.json(manifest);
+    } catch (error) {
+        console.error("Upstream manifesto error:", error.message);
+        res.status(500).json({ error: "Upstream manifesto error" });
+    }
+});
+
+// Catch-All Redirection (DEVE SER A ÚLTIMA ROTA)
+app.get('/addon/*', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    
+    const originalPath = req.url.replace('/addon', '');
+    const upstreamUrl = `${UPSTREAM_BASE}${originalPath}`;
+    
+    if (originalPath.startsWith('/stream/')) {
+        res.setHeader('Content-Type', 'application/json');
+        try {
+            const response = await axios.get(upstreamUrl);
+            let streams = response.data.streams || [];
+            return res.json({ streams: streams });
+        } catch (error) {
+            console.error("Stream Fetch Error:", error.message);
+            return res.status(404).json({ streams: [] }); 
+        }
+    }
+    res.redirect(307, upstreamUrl);
+});
+
+
+// ============================================================
+// 5. EXPORTAÇÃO
 // ============================================================
 const PORT = process.env.PORT || 7000;
 if (process.env.VERCEL) {
