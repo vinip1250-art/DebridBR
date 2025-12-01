@@ -20,7 +20,7 @@ const REFERRAL_TB = "b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96";
 const TORRENTIO_PT_URL = "https://torrentio.strem.fun/providers=nyaasi,tokyotosho,anidex,comando,bludv,micoleaodublado|language=portuguese/manifest.json";
 
 // ============================================================
-// 2. AIOSTREAMS CONFIG (TEMPLATE BASE LIMPO)
+// 2. AIOSTREAMS CONFIG (TEMPLATE LIMPO)
 // ============================================================
 const AIO_CONFIG_JSON = {
   "services": [
@@ -50,7 +50,7 @@ const AIO_CONFIG_JSON = {
         "timeout": 15000,
         "resources": ["stream"],
         "mediaTypes": [],
-        "services": ["torbox"], // Original mantido para evitar erro
+        "services": ["torbox"], 
         "includeP2P": false,
         "useMultipleInstances": false
       }
