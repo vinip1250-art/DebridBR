@@ -20,7 +20,7 @@ const REFERRAL_TB = "b08bcd10-8df2-44c9-a0ba-4d5bdb62ef96";
 const TORRENTIO_PT_URL = "https://torrentio.strem.fun/providers=nyaasi,tokyotosho,anidex,comando,bludv,micoleaodublado|language=portuguese/manifest.json";
 
 // ============================================================
-// 2. AIOSTREAMS CONFIG (TEMPLATE LIMPO - IDÊNTICO AO ARQUIVO 3)
+// 2. AIOSTREAMS CONFIG (TEMPLATE BASE LIMPO)
 // ============================================================
 const AIO_CONFIG_JSON = {
   "services": [
@@ -50,7 +50,7 @@ const AIO_CONFIG_JSON = {
         "timeout": 15000,
         "resources": ["stream"],
         "mediaTypes": [],
-        "services": ["torbox"], 
+        "services": ["torbox"], // Original mantido para evitar erro
         "includeP2P": false,
         "useMultipleInstances": false
       }
@@ -376,10 +376,8 @@ const generatorHtml = `
                     <a id="downloadAioConfig" href="#" class="block w-full bg-purple-900 hover:bg-purple-800 text-white py-3 rounded-lg font-bold text-xs uppercase tracking-wide mb-2" onclick="downloadCustomAio(event)">
                         <i class="fas fa-file-code mr-1"></i> Baixar Config AIO (Com Keys)
                     </a>
-                    
-                    <!-- NOVO BOTÃO INSTALAR AIO -->
-                    <a id="installAioBtn" href="#" class="block w-full bg-[#1f2937] hover:bg-[#374151] text-gray-300 hover:text-white font-medium text-xs py-2.5 rounded-lg text-center transition border border-gray-700">
-                        <i class="fas fa-rocket mr-1"></i> Instalar AIOStreams Direto
+                    <a href="https://aio.atbphosting.com/stremio/configure?menu=save-install" target="_blank" class="block w-full text-[10px] text-gray-500 hover:text-gray-300 mt-2 underline">
+                        Abrir Configurador Online
                     </a>
                 </div>
             </div>
@@ -500,10 +498,6 @@ const generatorHtml = `
                 if (rdService) {
                     rdService.enabled = true;
                     rdService.credentials = { apiKey: rdKey };
-                }
-                const preset = aioConfig.presets.find(p => p.type === 'stremthruTorz');
-                if(preset && !preset.options.services.includes('realdebrid')) {
-                    preset.options.services.push('realdebrid');
                 }
             }
             
